@@ -85,3 +85,15 @@ jar {
 		rename { "README_${project.base.archivesName.get()}.md" }
 	}
 }
+
+// src/gametest: the showcase pictures for the readme and the mod page. It opens a window:
+// run it under xvfb-run.
+fabricApi {
+	configureTests {
+		createSourceSet = true
+		modId = "tp-me-plz-gametest"
+		enableGameTests = false
+		enableClientGameTests = true
+		eula = true
+	}
+}

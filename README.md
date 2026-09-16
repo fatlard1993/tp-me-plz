@@ -11,6 +11,11 @@ A small teleport menu on a key, in pictures: a dialog with a big item on every p
 
 The menu keeps itself current while it is open: players coming and going, requests arriving and being answered.
 
+
+## Screenshots
+
+![The menu: Home, Spawn, and saved places each pictured by what was in hand when it was saved](menu.png)
+
 ## Who has it
 
 By default, only players an op has given it to, and ops. A teleport for everyone changes what a long walk means on a server, so that is the server's decision:

@@ -1,0 +1,18 @@
+{
+	"schemaVersion": 1,
+	"id": "tp-me-plz-gametest",
+	"version": "1.0.0",
+	"name": "TP Me Plz game tests",
+	"description": "The pictures for the readme and the mod page.",
+	"license": "MIT",
+	"environment": "*",
+	"entrypoints": {
+		"fabric-client-gametest": [
+			"justfatlard.tp_me_plz.gametest.Showcase"
+		]
+	},
+	"depends": {
+		"tp-me-plz": "*",
+		"fabric-client-gametest-api-v1": "*"
+	}
+}
