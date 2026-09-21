@@ -12,6 +12,7 @@ import justfatlard.pandorical.api.ComponentType;
 import justfatlard.pandorical.api.PandoricalApi;
 import justfatlard.pandorical.api.ScreenApi;
 import justfatlard.pandorical.api.ScreenBuilder;
+import justfatlard.pandorical.api.Viewport;
 import justfatlard.pandorical.protocol.ComponentDef;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.ChatFormatting;
@@ -28,7 +29,10 @@ import net.minecraft.world.item.ItemStack;
  * The menu, and the picture picker a new place is saved from.
  *
  * <p>Both are dialogs: a panel the colour of the inventory behind everything, dark words on it, the
- * way the game's own screens are, so nothing is read off the world behind.
+ * way the game's own screens are, so nothing is read off the world behind. The menu is cut to the
+ * window it is opened in - two columns given the room, one when not - and both of its lists sit in
+ * wells that scroll, so a full shelf of places and a full server of players fill it rather than
+ * running off the bottom of the screen.
  *
  * <p>Pictures first, for somebody still learning to read. Every place is a tile with a big item on
  * it and its name underneath - a bed for home, a compass for spawn, a skull for the last death, an
@@ -48,24 +52,35 @@ public final class TpMenu {
 	private static final boolean DEAD_HEADS = FabricLoader.getInstance().isModLoaded("dead-heads");
 	private static final boolean GEODES = FabricLoader.getInstance().isModLoaded("amethyst-door-justfatlard");
 
-	private static final int WIDTH = 188;
 	private static final int PAD = 8;
 	private static final int TOP = 20;
 	private static final int TILE = 40;
-	private static final int COLUMNS = 3;
 	private static final int BUTTON = 24;
 	private static final int ROW = 26;
 	private static final int GAP = 4;
 	private static final int FACE = 16;
 	private static final int ICON = 16;
+	/** A heading and the gap under it. */
+	private static final int HEADING = 20;
+	/** How far a well's border insets what sits in it, on every side. */
+	private static final int WELL = 4;
+	/** What a scroll panel keeps down its right for its scrollbar. */
+	private static final int BAR = 6;
+	/** Narrowest a tile may be drawn and still have a name under it worth reading. */
+	private static final int LEAST_TILE = 50;
 	/** How much bigger a tile's item is drawn than an item in a slot. */
 	private static final float TILE_ICON_SCALE = 1.5F;
-	/** Rows of players shown before the list scrolls. */
-	private static final int PLAYER_ROWS = 5;
 	/** The game's own colour for words on a panel. */
 	private static final String INK = "#FF404040";
-	/** Letters that fit under a tile's picture. */
-	private static final int TILE_LETTERS = 8;
+
+	/** A list sits in a well: the dialog's own bevel, lit from the other side so it reads sunken. */
+	private static final Map<String, String> WELL_STYLE = Map.of(
+		ComponentType.PROP_BORDER, "beveled",
+		ComponentType.PROP_BORDER_LIGHT, "#FF373737",
+		ComponentType.PROP_BORDER_DARK, "#FFFFFFFF",
+		ComponentType.PROP_BORDER_MID_LIGHT, "#FF8B8B8B",
+		ComponentType.PROP_BORDER_MID_DARK, "#FFC6C6C6",
+		ComponentType.PROP_BACKGROUND, "#FF8B8B8B");
 
 	/**
 	 * Pictures for a new place, chosen to be told apart at a glance and to stand for the places
@@ -156,22 +171,162 @@ public final class TpMenu {
 
 	private record Tile(String id, String item, String word, boolean deletable) {}
 
+	/**
+	 * The dialog, sized to what is in it and then cut to the window it will be shown in, which the
+	 * client reports and Pandorical keeps.
+	 *
+	 * <p>Content first, window second: a dialog as tall as the window with one row of tiles in it
+	 * is a screen of empty grey, which is the same waste as one that runs off the bottom. So each
+	 * list asks for the room its rows need, the dialog is the sum of that, and only where the sum
+	 * will not fit does anything scroll - the two lists then splitting what there is between them
+	 * in proportion to what they wanted.
+	 *
+	 * <p>Given the width it stands the places beside the people; given a narrow window, or nobody
+	 * else on the server to stand there, it puts them one above the other.
+	 */
+	private record Layout(int width, int height,
+			int placesX, int placesY, int placesW, int placesH, int columns, int tileW,
+			int peopleX, int peopleW,
+			int askersY, int askersH, int playersY, int playersH) {
+
+		/** Clear of the window's edge, so the dialog never looks wedged into it. */
+		private static final int MARGIN = 10;
+		private static final int LEAST_W = 188;
+		private static final int MOST_W = 420;
+		private static final int LEAST_H = 120;
+		private static final int MOST_H = 330;
+		/** Wide enough to stand the two lists side by side and still hold three tiles across. */
+		private static final int SIDE_BY_SIDE = 310;
+		private static final int GUTTER = 10;
+		/** The width a column of names wants, where there is room to give it. */
+		private static final int NAMES_W = 150;
+		/** Tiles past this many are another row: a row of seven reads as a strip, not a grid. */
+		private static final int MOST_COLUMNS = 5;
+		/** The width a tile is drawn at where nothing squeezes it. */
+		private static final int TILE_W = 54;
+		/** A well with one name in it: the least a list of people is ever cut to. */
+		private static final int ONE_ROW = ROW + WELL * 2;
+		/** The same for the grid, whose rows carry the gap under them as well as between. */
+		private static final int ONE_TILE_ROW = TILE + GAP + WELL * 2;
+
+		static Layout fit(Viewport view, int tiles, int askers, int others) {
+			// What it would like to be: a grid of tiles at their proper width, and beside it a
+			// column wide enough for a name, where there is anybody to name.
+			boolean people = askers + others > 0;
+			int columns = Math.clamp(tiles, 2, MOST_COLUMNS);
+			int wants = PAD * 2 + columns * TILE_W + (columns - 1) * GAP + WELL * 2 + BAR
+				+ (people ? GUTTER + NAMES_W : 0);
+			int width = Math.clamp(wants, LEAST_W, Math.clamp(view.width() - 2 * MARGIN, LEAST_W, MOST_W));
+			int inner = width - PAD * 2;
+
+			// And what it was granted, shared out. A tile narrower than LEAST_TILE has no room for
+			// a name, so past that point the grid drops a column rather than shrinking further.
+			boolean twoPane = people && width >= SIDE_BY_SIDE;
+			int placesW = inner;
+			int peopleW = inner;
+			int peopleX = PAD;
+			if (twoPane) {
+				int leastPlaces = 2 * LEAST_TILE + GAP + WELL * 2 + BAR;
+				peopleW = Math.clamp(NAMES_W, 120, inner - GUTTER - leastPlaces);
+				placesW = inner - GUTTER - peopleW;
+				peopleX = PAD + placesW + GUTTER;
+			}
+			int grid = placesW - WELL * 2 - BAR;
+			columns = Math.max(2, Math.min(columns, (grid + GAP) / (LEAST_TILE + GAP)));
+			int tileW = (grid - GAP * (columns - 1)) / columns;
+			int rows = (tiles + columns - 1) / columns;
+
+			// The room each list would take uncut. A list with nobody in it still wants one row,
+			// for the line that says so. A grid asks for the gap under its last row as well as
+			// between them: the well scrolls by whole rows, and a well four short of a whole one
+			// shows a scrollbar and clips the bottom row rather than dropping the padding.
+			int placesWant = rows * (TILE + GAP) + WELL * 2;
+			int playersWant = Math.max(others, 1) * ROW + WELL * 2;
+			int askersWant = askers == 0 ? 0 : askers * ROW + WELL * 2;
+			int overhead = HEADING + (askers == 0 ? 0 : HEADING + GAP) + (twoPane ? 0 : HEADING + GAP);
+
+			int body = twoPane
+				? Math.max(HEADING + placesWant, overhead + askersWant + playersWant)
+				: overhead + placesWant + askersWant + playersWant;
+			int roof = Math.min(view.height() - 2 * MARGIN, MOST_H);
+			int height = Math.clamp(TOP + body + PAD, LEAST_H, Math.max(LEAST_H, roof));
+			int bodyH = height - TOP - PAD;
+
+			int askersH = 0;
+			int placesH;
+			int playersH;
+			if (twoPane) {
+				// Side by side, neither list is taking room from the other.
+				placesH = Math.min(placesWant, bodyH - HEADING);
+				if (askers > 0) askersH = Math.min(askersWant, bodyH - HEADING * 2 - ONE_ROW - GAP);
+				playersH = Math.min(playersWant, bodyH - overhead - askersH);
+			} else {
+				int room = bodyH - overhead;
+				if (askers > 0) {
+					askersH = Math.min(askersWant, room - ONE_TILE_ROW - ONE_ROW);
+					room -= askersH;
+				}
+				if (placesWant + playersWant <= room) {
+					placesH = placesWant;
+					playersH = playersWant;
+				} else {
+					// Neither fits: split what there is the way they asked for it, so a shelf of
+					// thirty places does not squeeze the player list down to nothing, nor the other
+					// way about.
+					placesH = Math.clamp(room * placesWant / (placesWant + playersWant),
+						ONE_TILE_ROW, room - ONE_ROW);
+					playersH = room - placesH;
+				}
+			}
+
+			int placesY = TOP + HEADING;
+			int top = twoPane ? TOP : placesY + placesH + GAP;
+			int askersY = askers == 0 ? 0 : top + HEADING;
+			if (askers > 0) top = askersY + askersH + GAP;
+			return new Layout(width, height,
+				PAD, placesY, placesW, placesH, columns, tileW,
+				peopleX, peopleW,
+				askersY, askersH, top + HEADING, playersH);
+		}
+	}
+
 	private static void show(ServerPlayer player) {
 		List<ServerPlayer> others = new ArrayList<>(player.level().getServer().getPlayerList().getPlayers());
 		others.remove(player);
 		others.sort(java.util.Comparator.comparing(p -> p.getGameProfile().name().toLowerCase(java.util.Locale.ROOT)));
-		List<ServerPlayer> askers = Requests.askingOf(player);
-		others.removeAll(askers);
+		List<Requests.Ask> askers = Requests.askingOf(player);
+		for (Requests.Ask ask : askers) others.remove(Requests.askerOf(player.level().getServer(), ask));
 		List<Places.Place> places = Places.of(player);
 
-		// Drawn in the order added: the dialog, then buttons and words, then the pictures laid on
-		// the buttons. The dialog's height is only known at the end, so the rest waits in these.
-		List<ComponentBuilder> under = new ArrayList<>();
-		List<ComponentBuilder> over = new ArrayList<>();
-		int inner = WIDTH - PAD * 2;
-		int y = TOP;
+		Integer doomed = deleting.get(player.getUUID());
+		if (doomed == null || doomed >= places.size()) {
+			deleting.remove(player.getUUID());
+			doomed = null;
+		}
 
-		// The tiles: the fixed places, then the player's own, then the one that adds another.
+		List<Tile> tiles = tilesFor(player, places);
+		Layout at = Layout.fit(PandoricalApi.screens().viewport(player), tiles.size(), askers.size(), others.size());
+		ScreenBuilder screen = new ScreenBuilder(TYPE).title("Teleport").pauseGame(false).size(at.width(), at.height());
+		screen.panel("dialog", 0, 0, at.width(), at.height(), Map.of(ComponentType.PROP_BORDER, "beveled"));
+		screen.component(text("title", PAD, 7, "Teleport"));
+
+		placesPane(screen, at, tiles, places, doomed);
+		peoplePane(screen, at, player, askers, others);
+
+		PandoricalApi.screens().open(player, screen.build());
+		String screenId = PandoricalApi.getOpenScreenId(player.getUUID());
+		if (screenId != null) open.put(player.getUUID(), screenId);
+	}
+
+	/**
+	 * The tiles, as a grid in a well that scrolls a row at a time.
+	 *
+	 * <p>Over the well is either its name or, when a place is waiting on "are you sure", the
+	 * question: the same row, because the question is about what is under it and because a dialog
+	 * that grows a strip while you are reading it moves everything else out from under the mouse.
+	 */
+	/** The fixed places, then the player's own, then the one that adds another. */
+	private static List<Tile> tilesFor(ServerPlayer player, List<Places.Place> places) {
 		List<Tile> tiles = new ArrayList<>();
 		tiles.add(new Tile("home", "minecraft:red_bed", "Home", false));
 		tiles.add(new Tile("spawn", "minecraft:compass", "Spawn", false));
@@ -183,132 +338,168 @@ public final class TpMenu {
 			tiles.add(new Tile("place:" + i, places.get(i).icon(), places.get(i).name(), true));
 		}
 		if (!Places.full(player)) tiles.add(new Tile("new", "minecraft:writable_book", "New", false));
+		return tiles;
+	}
 
-		int tileW = (inner - GAP * (COLUMNS - 1)) / COLUMNS;
+	private static void placesPane(ScreenBuilder screen, Layout at, List<Tile> tiles,
+			List<Places.Place> places, Integer doomed) {
+		screen.panel("places_well", at.placesX(), at.placesY(), at.placesW(), at.placesH(), WELL_STYLE);
+		if (doomed == null) heading(screen, "places", at.placesX(), TOP, at.placesW(), "minecraft:filled_map", "Places");
+		else confirm(screen, at, places.get(doomed));
+
+		int letters = Math.max(4, at.tileW() / 6 - 1);
+		List<ComponentDef> grid = new ArrayList<>();
 		for (int i = 0; i < tiles.size(); i++) {
 			Tile tile = tiles.get(i);
-			int x = PAD + (i % COLUMNS) * (tileW + GAP);
-			int ty = y + (i / COLUMNS) * (TILE + GAP);
-			tile(under, over, tile.id(), x, ty, tileW, tile.item(), tile.word());
-			if (tile.deletable()) {
-				// Small, and in a corner, on purpose: deleting is the one thing here that loses
-				// something, and it asks first.
-				String index = tile.id().substring("place:".length());
-				under.add(button("delete:" + index, x + tileW - 12, ty + 1, 11, 11,
-					Map.of(ComponentType.PROP_LABEL, "✕", ComponentType.PROP_TOOLTIP, "Delete " + tile.word())));
-			}
+			int x = (i % at.columns()) * (at.tileW() + GAP);
+			int y = (i / at.columns()) * (TILE + GAP);
+			grid.add(button(tile.id(), x, y, at.tileW(), TILE,
+				Map.of(ComponentType.PROP_TOOLTIP, tile.word())).build());
+			grid.add(icon(tile.id() + "_icon", tile.item(), x + (at.tileW() - ICON) / 2, y + 7, TILE_ICON_SCALE).build());
+			grid.add(new ComponentBuilder(tile.id() + "_word", ComponentType.TEXT)
+				.bounds(x, y + TILE - 11, at.tileW(), 10)
+				.prop(ComponentType.PROP_TEXT, Places.clip(tile.word(), letters))
+				.prop(ComponentType.PROP_ALIGN, "center")
+				.prop(ComponentType.PROP_SHADOW, "true")
+				.build());
+			if (!tile.deletable()) continue;
+			// Small, and in a corner, on purpose: deleting is the one thing here that loses
+			// something, and it asks first.
+			grid.add(button("delete:" + tile.id().substring("place:".length()), x + at.tileW() - 12, y + 1, 11, 11,
+				Map.of(ComponentType.PROP_LABEL, "✕", ComponentType.PROP_TOOLTIP, "Delete " + tile.word())).build());
 		}
-		y += ((tiles.size() + COLUMNS - 1) / COLUMNS) * (TILE + GAP) + 2;
-
-		// Are you sure?
-		Integer doomed = deleting.get(player.getUUID());
-		if (doomed != null && doomed < places.size()) {
-			Places.Place place = places.get(doomed);
-			over.add(icon("doomed_icon", place.icon(), PAD, y + 4, 1F));
-			under.add(text("doomed_text", PAD + ICON + 4, y + 8, "Delete " + Places.clip(place.name(), 16) + "?"));
-			y += BUTTON + 2;
-			int half = (inner - GAP) / 2;
-			under.add(button("delete_yes", PAD, y, half, BUTTON, Map.of(ComponentType.PROP_LABEL, "Delete",
-				ComponentType.PROP_TOOLTIP, "Delete " + place.name())));
-			over.add(icon("delete_yes_icon", "minecraft:barrier", PAD + 4, y + (BUTTON - ICON) / 2, 1F));
-			under.add(button("delete_no", PAD + half + GAP, y, inner - half - GAP, BUTTON, Map.of(ComponentType.PROP_LABEL, "Keep",
-				ComponentType.PROP_STYLE, "accepted")));
-			y += ROW + 2;
-		} else {
-			deleting.remove(player.getUUID());
-		}
-
-		// Whoever is asking to come here, to say yes or no to.
-		if (!askers.isEmpty()) {
-			heading(under, over, "asking", y, "minecraft:bell", "Wants to come to you");
-			y += 20;
-			for (ServerPlayer asker : askers) {
-				String id = asker.getUUID().toString();
-				String name = asker.getGameProfile().name();
-				under.add(button("accept:" + id, PAD, y, inner - BUTTON - GAP, BUTTON, Map.of(
-					ComponentType.PROP_LABEL, name,
-					ComponentType.PROP_TOOLTIP, "Bring " + name + " here",
-					ComponentType.PROP_STYLE, "accepted")));
-				over.add(face("accept_face:" + id, asker, PAD + 4, y + (BUTTON - FACE) / 2));
-				under.add(button("deny:" + id, PAD + inner - BUTTON, y, BUTTON, BUTTON,
-					Map.of(ComponentType.PROP_TOOLTIP, "Say no")));
-				over.add(icon("deny_icon:" + id, "minecraft:barrier", PAD + inner - BUTTON + (BUTTON - ICON) / 2,
-					y + (BUTTON - ICON) / 2, 1F));
-				y += ROW;
-			}
-			y += 2;
-		}
-
-		// Everyone else: a press asks to go to them.
-		heading(under, over, "players", y, "minecraft:ender_pearl", "Go to a player");
-		y += 20;
-		List<ComponentDef> rows = new ArrayList<>();
-		if (others.isEmpty()) {
-			under.add(text("nobody", PAD, y + 4, "Nobody else is on right now"));
-			y += ROW;
-		} else {
-			int rowY = 0;
-			for (ServerPlayer other : others) {
-				String id = other.getUUID().toString();
-				String name = other.getGameProfile().name();
-				boolean asked = Requests.asking(player, other.getUUID());
-				rows.add(new ComponentBuilder("ask:" + id, ComponentType.BUTTON)
-					.bounds(0, rowY, inner - 6, BUTTON)
-					.prop(ComponentType.PROP_LABEL, name)
-					.prop(ComponentType.PROP_TOOLTIP, asked ? "Waiting for " + name + " to say yes" : "Ask to go to " + name)
-					.prop(ComponentType.PROP_ENABLED, String.valueOf(!asked))
-					.build());
-				rows.add(face("ask_face:" + id, other, 4, rowY + (BUTTON - FACE) / 2).build());
-				// A clock on a player already asked: waiting, in a picture.
-				if (asked) rows.add(icon("ask_wait:" + id, "minecraft:clock", inner - 6 - ICON - 4, rowY + (BUTTON - ICON) / 2, 1F).build());
-				rowY += ROW;
-			}
-		}
-		int shown = Math.min(others.size(), PLAYER_ROWS);
-		int listY = y;
-		if (shown > 0) y += shown * ROW;
-
-		int height = y + PAD - 2;
-		ScreenBuilder screen = new ScreenBuilder(TYPE).title("Teleport").pauseGame(false).size(WIDTH, height);
-		screen.panel("dialog", 0, 0, WIDTH, height, Map.of(ComponentType.PROP_BORDER, "beveled"));
-		screen.component(text("title", PAD, 7, "Teleport"));
-		for (ComponentBuilder component : under) screen.component(component);
-		for (ComponentBuilder component : over) screen.component(component);
-		if (shown > 0) {
-			screen.scrollPanel("players", PAD, listY, inner, shown * ROW, Map.of(
-				"item_height", String.valueOf(ROW),
-				"visible_items", String.valueOf(shown),
-				"total_items", String.valueOf(others.size()),
-				"show_scrollbar", String.valueOf(others.size() > PLAYER_ROWS),
-				ComponentType.PROP_BACKGROUND, "#00000000"), rows);
-		}
-
-		PandoricalApi.screens().open(player, screen.build());
-		String screenId = PandoricalApi.getOpenScreenId(player.getUUID());
-		if (screenId != null) open.put(player.getUUID(), screenId);
+		int rows = (tiles.size() + at.columns() - 1) / at.columns();
+		scroller(screen, "places", at.placesX(), at.placesY(), at.placesW(), at.placesH(),
+			TILE + GAP, rows, grid);
 	}
 
 	/**
-	 * A place: a button with a big item on it and its name underneath. The name is on the tooltip
-	 * too, whole, since a tile only has room for the start of it. The button goes on the screen
-	 * now and the picture and name in {@code over}, which is laid on after the dialog, so they are
-	 * drawn over the button rather than under it.
+	 * Whoever is asking, to answer, and then everyone else to ask.
+	 *
+	 * <p>Two pictures carry the whole of which way a trip goes, in both lists: a pearl is you
+	 * travelling, a lead is them. So a row asking you to come over wears a pearl and a row asking
+	 * to come to you wears a lead, and the same two are the two buttons on every player.
 	 */
-	private static void tile(List<ComponentBuilder> under, List<ComponentBuilder> over, String id, int x, int y, int w,
-			String item, String word) {
-		under.add(button(id, x, y, w, TILE, Map.of(ComponentType.PROP_TOOLTIP, word)));
-		over.add(icon(id + "_icon", item, x + (w - ICON) / 2, y + 7, TILE_ICON_SCALE));
-		over.add(new ComponentBuilder(id + "_word", ComponentType.TEXT)
-			.bounds(x, y + TILE - 11, w, 10)
-			.prop(ComponentType.PROP_TEXT, Places.clip(word, TILE_LETTERS))
-			.prop(ComponentType.PROP_ALIGN, "center")
-			.prop(ComponentType.PROP_SHADOW, "true"));
+	private static void peoplePane(ScreenBuilder screen, Layout at, ServerPlayer player,
+			List<Requests.Ask> askers, List<ServerPlayer> others) {
+		int inner = at.peopleW() - WELL * 2 - BAR;
+		if (!askers.isEmpty()) {
+			heading(screen, "asking", at.peopleX(), at.askersY() - HEADING, at.peopleW(),
+				"minecraft:bell", "Asking you");
+			screen.panel("askers_well", at.peopleX(), at.askersY(), at.peopleW(), at.askersH(), WELL_STYLE);
+			List<ComponentDef> rows = new ArrayList<>();
+			int y = 0;
+			for (Requests.Ask ask : askers) {
+				ServerPlayer asker = Requests.askerOf(player.level().getServer(), ask);
+				if (asker == null) continue;
+				boolean here = ask.way() == Requests.Way.HERE;
+				String id = asker.getUUID().toString();
+				String name = asker.getGameProfile().name();
+				int wide = inner - BUTTON - GAP;
+				rows.add(button("accept:" + id, 0, y, wide, BUTTON, Map.of(
+					ComponentType.PROP_LABEL, name,
+					ComponentType.PROP_TOOLTIP, here ? "Go to " + name : "Bring " + name + " here",
+					ComponentType.PROP_STYLE, "accepted")).build());
+				rows.add(face("accept_face:" + id, asker, 4, y + (BUTTON - FACE) / 2).build());
+				rows.add(icon("accept_way:" + id, here ? "minecraft:ender_pearl" : "minecraft:lead",
+					wide - ICON - 4, y + (BUTTON - ICON) / 2, 1F).build());
+				rows.add(button("deny:" + id, inner - BUTTON, y, BUTTON, BUTTON,
+					Map.of(ComponentType.PROP_TOOLTIP, here ? "Stay where you are" : "Say no")).build());
+				rows.add(icon("deny_icon:" + id, "minecraft:barrier",
+					inner - BUTTON + (BUTTON - ICON) / 2, y + (BUTTON - ICON) / 2, 1F).build());
+				y += ROW;
+			}
+			scroller(screen, "askers", at.peopleX(), at.askersY(), at.peopleW(), at.askersH(),
+				ROW, askers.size(), rows);
+		}
+
+		heading(screen, "players", at.peopleX(), at.playersY() - HEADING, at.peopleW(),
+			"minecraft:ender_pearl", "Go to, or bring here");
+		screen.panel("players_well", at.peopleX(), at.playersY(), at.peopleW(), at.playersH(), WELL_STYLE);
+		if (others.isEmpty()) {
+			screen.component(text("nobody", at.peopleX() + WELL + 4, at.playersY() + WELL + 6,
+				"Nobody else is on right now"));
+			return;
+		}
+		List<ComponentDef> rows = new ArrayList<>();
+		int y = 0;
+		for (ServerPlayer other : others) {
+			String id = other.getUUID().toString();
+			String name = other.getGameProfile().name();
+			Requests.Way asked = Requests.asking(player, other.getUUID());
+			boolean waitingThere = asked == Requests.Way.THERE;
+			boolean waitingHere = asked == Requests.Way.HERE;
+			// Their name is the trip you take; the lead beside it is the one they take.
+			int wide = inner - BUTTON - GAP;
+			rows.add(new ComponentBuilder("ask:" + id, ComponentType.BUTTON)
+				.bounds(0, y, wide, BUTTON)
+				.prop(ComponentType.PROP_LABEL, name)
+				.prop(ComponentType.PROP_TOOLTIP, waitingThere
+					? "Waiting for " + name + " to say yes" : "Ask to go to " + name)
+				.prop(ComponentType.PROP_ENABLED, String.valueOf(!waitingThere))
+				.build());
+			rows.add(face("ask_face:" + id, other, 4, y + (BUTTON - FACE) / 2).build());
+			// A clock on a player already asked: waiting, in a picture.
+			if (waitingThere) rows.add(icon("ask_wait:" + id, "minecraft:clock", wide - ICON - 4, y + (BUTTON - ICON) / 2, 1F).build());
+			rows.add(new ComponentBuilder("bring:" + id, ComponentType.BUTTON)
+				.bounds(inner - BUTTON, y, BUTTON, BUTTON)
+				.prop(ComponentType.PROP_TOOLTIP, waitingHere
+					? "Waiting for " + name + " to say yes" : "Ask " + name + " to come to you")
+				.prop(ComponentType.PROP_ENABLED, String.valueOf(!waitingHere))
+				.build());
+			rows.add(icon("bring_icon:" + id, waitingHere ? "minecraft:clock" : "minecraft:lead",
+				inner - BUTTON + (BUTTON - ICON) / 2, y + (BUTTON - ICON) / 2, 1F).build());
+			y += ROW;
+		}
+		scroller(screen, "players", at.peopleX(), at.playersY(), at.peopleW(), at.playersH(),
+			ROW, others.size(), rows);
+	}
+
+	/**
+	 * Are you sure, on the places heading's row: the place, then Delete and Keep.
+	 *
+	 * <p>The picture and the name say which place, and the two buttons say what is being asked, so
+	 * nothing here spells out the question. At the width this has to survive - a narrow window,
+	 * with the name of somebody's longest-named place in it - a sentence would not have fit.
+	 */
+	private static void confirm(ScreenBuilder screen, Layout at, Places.Place place) {
+		int wide = Math.min(46, (at.placesW() - GAP * 2) / 3);
+		int asking = at.placesW() - wide * 2 - GAP * 2;
+		int words = asking - ICON - 4;
+		screen.component(icon("doomed_icon", place.icon(), at.placesX(), TOP, 1F));
+		screen.component(new ComponentBuilder("doomed_text", ComponentType.TEXT)
+			.bounds(at.placesX() + ICON + 4, TOP + 4, words, 10)
+			.prop(ComponentType.PROP_TEXT, Places.clip(place.name(), Math.max(4, words / 6)))
+			.prop(ComponentType.PROP_COLOR, INK));
+		screen.component(button("delete_yes", at.placesX() + asking, TOP - 2, wide, BUTTON - 6,
+			Map.of(ComponentType.PROP_LABEL, "Delete", ComponentType.PROP_TOOLTIP, "Delete " + place.name())));
+		screen.component(button("delete_no", at.placesX() + asking + wide + GAP, TOP - 2, wide, BUTTON - 6,
+			Map.of(ComponentType.PROP_LABEL, "Keep", ComponentType.PROP_TOOLTIP, "Keep " + place.name(),
+				ComponentType.PROP_STYLE, "accepted")));
+	}
+
+	/**
+	 * The rows inside a well, clipped to it and scrolled a row at a time. The well's border is
+	 * what the panel is inset by, and its scrollbar sits inside that.
+	 */
+	private static void scroller(ScreenBuilder screen, String id, int x, int y, int w, int h,
+			int rowHeight, int rows, List<ComponentDef> content) {
+		int visible = Math.max(1, (h - WELL * 2) / rowHeight);
+		screen.scrollPanel(id, x + WELL, y + WELL, w - WELL * 2, h - WELL * 2, Map.of(
+			"item_height", String.valueOf(rowHeight),
+			"visible_items", String.valueOf(visible),
+			"total_items", String.valueOf(rows),
+			"show_scrollbar", String.valueOf(rows > visible),
+			ComponentType.PROP_BACKGROUND, "#00000000"), content);
 	}
 
 	/** A section's name, after a picture of what the section is for. */
-	private static void heading(List<ComponentBuilder> under, List<ComponentBuilder> over, String id, int y, String item, String words) {
-		over.add(icon(id + "_heading_icon", item, PAD, y, 1F));
-		under.add(text(id + "_heading", PAD + ICON + 4, y + 4, words));
+	private static void heading(ScreenBuilder screen, String id, int x, int y, int w, String item, String words) {
+		screen.component(icon(id + "_heading_icon", item, x, y, 1F));
+		screen.component(new ComponentBuilder(id + "_heading", ComponentType.TEXT)
+			.bounds(x + ICON + 4, y + 4, w - ICON - 4, 10)
+			.prop(ComponentType.PROP_TEXT, words)
+			.prop(ComponentType.PROP_COLOR, INK));
 	}
 
 	private static ComponentBuilder button(String id, int x, int y, int w, int h, Map<String, String> props) {
@@ -337,6 +528,8 @@ public final class TpMenu {
 
 	private static void pressed(ServerPlayer player, Map<String, String> data) {
 		String id = data.get(ScreenApi.FALLBACK_COMPONENT_ID_KEY);
+		// Answering is not a use of the menu: whoever was asked may say yes or no either way,
+		// and where a yes would move them it is their own teleporting that was checked to ask.
 		if (id == null || !Access.allowed(player) && !id.startsWith("accept:") && !id.startsWith("deny:")) return;
 
 		switch (id) {
@@ -368,16 +561,23 @@ public final class TpMenu {
 						deleting.put(player.getUUID(), parse(rest));
 						show(player);
 					}
-					case "ask", "accept", "deny" -> {
+					case "ask", "bring", "accept", "deny" -> {
 						ServerPlayer other = playerOf(player, rest);
 						if (other == null) {
 							show(player);
 							return;
 						}
 						switch (kind) {
-							// Asking closes the menu: the answer is the other player's to give, and
-							// "asked" said in a menu left standing read as a button that did nothing.
+							// Asking to go closes the menu: the answer is the other player's to
+							// give, and "asked" said in a menu left standing read as a button that
+							// did nothing.
 							case "ask" -> leave(player, p -> Requests.ask(p, other));
+							// Asking them to come does not: you are staying put, and the menu is
+							// where the answer will show up.
+							case "bring" -> {
+								Requests.bring(player, other);
+								show(player);
+							}
 							case "accept" -> Requests.accept(player, other);
 							default -> Requests.deny(player, other);
 						}
@@ -529,6 +729,14 @@ public final class TpMenu {
 			people.append(choice(name, "/tpme ask " + name));
 		}
 		player.sendSystemMessage(people);
+
+		MutableComponent bring = Component.literal("Bring here: ").withStyle(ChatFormatting.LIGHT_PURPLE);
+		for (int i = 0; i < others.size(); i++) {
+			if (i > 0) bring.append(" ");
+			String name = others.get(i).getGameProfile().name();
+			bring.append(choice(name, "/tpme bring " + name));
+		}
+		player.sendSystemMessage(bring);
 	}
 
 	private static Component choice(String label, String command) {

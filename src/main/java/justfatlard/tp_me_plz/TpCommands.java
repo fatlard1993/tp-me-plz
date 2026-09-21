@@ -56,6 +56,19 @@ public final class TpCommands {
 						Requests.ask(asker, EntityArgument.getPlayer(context, "player"));
 						return 1;
 					})))
+			// The other way about: they travel, so it is their teleporting that is asked about,
+			// inside Requests.bring.
+			.then(Commands.literal("bring")
+				.then(Commands.argument("player", EntityArgument.player())
+					.executes(context -> {
+						ServerPlayer asker = context.getSource().getPlayerOrException();
+						if (!Access.allowed(asker)) {
+							TpMenu.refuse(asker);
+							return 0;
+						}
+						Requests.bring(asker, EntityArgument.getPlayer(context, "player"));
+						return 1;
+					})))
 			.then(Commands.literal("accept")
 				.then(Commands.argument("player", EntityArgument.player())
 					.executes(context -> {

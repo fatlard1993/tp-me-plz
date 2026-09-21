@@ -11,10 +11,14 @@ import net.fabricmc.fabric.api.client.gametest.v1.screenshot.TestScreenshotOptio
 import net.minecraft.core.BlockPos;
 
 /**
- * The picture for the readme and the mod page: the menu itself, which is the whole mod. A bed and
+ * The pictures for the readme and the mod page: the menu itself, which is the whole mod. A bed and
  * a few saved places first, so it has something in it worth looking at.
  *
- * <p>Run it under xvfb-run; the frame lands in build/run/clientGameTest/screenshots.
+ * <p>Two frames. {@code menu} is the mod as most people will meet it, a handful of places saved.
+ * {@code menu-full} is every place the config allows, which is the one that catches the dialog
+ * outgrowing the window: a layout that only ever photographs well half empty is not laid out.
+ *
+ * <p>Run it under xvfb-run; the frames land in build/run/clientGameTest/screenshots.
  */
 public final class Showcase implements FabricClientGameTest {
 
@@ -63,11 +67,27 @@ public final class Showcase implements FabricClientGameTest {
 
 			// Long enough for the recipe and advancement toasts to clear the corner first.
 			context.waitTicks(220);
-			// Long enough for the recipe and advancement toasts to clear the corner first.
 			context.waitTicks(220);
 			server.runOnServer(s -> TpMenu.openFor(connection.getServerPlayer()));
 			context.waitTicks(60);
 			shoot(context, "menu");
+
+			// And again with the shelf as full as the config allows, which is where the old dialog
+			// ran off the bottom of the screen. Saving them all from this one spot is fine: what
+			// the picture is of is the tiles.
+			String[] rest = {
+				"minecraft:diamond", "minecraft:cake", "minecraft:oak_door", "minecraft:rail",
+				"minecraft:emerald",
+			};
+			for (String picture : rest) {
+				server.runCommand("item replace entity @a weapon.mainhand with " + picture);
+				server.runCommand("execute as @a at @a run tpme newplace");
+			}
+			server.runCommand("item replace entity @a weapon.mainhand with minecraft:air");
+			context.waitTicks(20);
+			server.runOnServer(s -> TpMenu.openFor(connection.getServerPlayer()));
+			context.waitTicks(60);
+			shoot(context, "menu-full");
 		}
 	}
 	private void shoot(ClientGameTestContext context, String name) {

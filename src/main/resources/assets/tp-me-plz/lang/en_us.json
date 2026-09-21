@@ -1,4 +1,6 @@
 {
 	"tp-me-plz.ask": "%s asks to teleport to you. ",
-	"tp-me-plz.ask.controller": "%s asks to teleport to you. [chat] to answer: "
+	"tp-me-plz.ask.controller": "%s asks to teleport to you. [chat] to answer: ",
+	"tp-me-plz.ask-here": "%s asks you to teleport to them. ",
+	"tp-me-plz.ask-here.controller": "%s asks you to teleport to them. [chat] to answer: "
 }

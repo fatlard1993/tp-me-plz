@@ -11,85 +11,193 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import justfatlard.pandorical.api.Capabilities;
+import justfatlard.pandorical.api.NoticeApi;
+import justfatlard.pandorical.api.PandoricalApi;
 
 /**
- * Asking to go to another player. The one asked says yes or no, in chat or in their own menu,
- * within a minute or so; yes brings the asker to wherever the one asked is standing then.
+ * Asking about a trip between two players, which goes both ways: "let me come to you", and "come
+ * to me". Either way the one who did not ask is the one who answers, within a minute or so, in
+ * chat or in their own menu.
  *
- * <p>One ask at a time from each player: asking somebody else takes back the first.
+ * <p>That is the rule the whole thing turns on: <b>you never move yourself by asking</b>. Asking
+ * to go somewhere waits on the person who is there; asking somebody to come waits on them. Nobody
+ * is moved, or has somebody land on them, without having said yes to it.
+ *
+ * <p>One ask at a time from each player: asking again, either way, takes back the first.
  */
 public final class Requests {
 	private Requests() {}
 
-	record Ask(UUID asker, UUID host, long until) {}
+	/** Which of the two a yes would move. */
+	public enum Way {
+		/** The asker goes to the one asked: "let me come to you". */
+		THERE,
+		/** The one asked comes to the asker: "come to me". */
+		HERE
+	}
+
+	record Ask(UUID asker, UUID asked, long until, Way way) {}
 
 	/** By asker. */
 	private static final Map<UUID, Ask> asks = new ConcurrentHashMap<>();
 
-	public static void ask(ServerPlayer asker, ServerPlayer host) {
-		if (asker == host) return;
+	/** What the tray files these under; the id of each one is the asker. */
+	private static final String NOTICE_KIND = "tp-me-plz:ask";
+
+	/**
+	 * Wired once, from mod init: an answer given in the tray is the same answer as the one given
+	 * in chat or in the menu, and lands in the same place.
+	 */
+	public static void register() {
+		PandoricalApi.notices().onChoice(NOTICE_KIND, (asked, noticeId, choiceId) -> {
+			ServerPlayer asker = asked.level().getServer().getPlayerList()
+				.getPlayer(UUID.fromString(noticeId));
+			if (asker == null) {
+				Trips.say(asked, "They are not on any more");
+				return;
+			}
+			if ("accept".equals(choiceId)) accept(asked, asker); else deny(asked, asker);
+		});
+	}
+
+	/** Take the question out of the tray, however it came to be answered. */
+	private static void withdraw(ServerPlayer asked, UUID asker) {
+		if (asked != null) PandoricalApi.notices().withdraw(asked, NOTICE_KIND, asker.toString());
+	}
+
+	/** "Let me come to you", for the asker to be brought over if they say yes. */
+	public static void ask(ServerPlayer asker, ServerPlayer asked) {
+		send(asker, asked, Way.THERE);
+	}
+
+	/**
+	 * "Come to me", for the one asked to be brought over if they say yes.
+	 *
+	 * <p>The traveller here is the one being asked, so it is their teleporting that is being used
+	 * and {@link Access} is asked about them rather than about the asker. Otherwise anybody given
+	 * the menu could ferry somebody who was not, and the setting would mean nothing.
+	 */
+	public static void bring(ServerPlayer asker, ServerPlayer asked) {
+		if (!Access.allowed(asked)) {
+			Trips.say(asker, asked.getGameProfile().name() + " has not been given teleporting");
+			return;
+		}
+		send(asker, asked, Way.HERE);
+	}
+
+	private static void send(ServerPlayer asker, ServerPlayer asked, Way way) {
+		if (asker == asked) return;
 		String who = asker.getGameProfile().name();
-		String them = host.getGameProfile().name();
+		String them = asked.getGameProfile().name();
 		long until = asker.level().getGameTime() + 20L * TpConfig.requestSeconds();
-		Ask previous = asks.put(asker.getUUID(), new Ask(asker.getUUID(), host.getUUID(), until));
-		if (previous != null && !previous.host().equals(host.getUUID())) refreshHost(asker.level().getServer(), previous.host());
+		Ask previous = asks.put(asker.getUUID(), new Ask(asker.getUUID(), asked.getUUID(), until, way));
+		if (previous != null && !previous.asked().equals(asked.getUUID())) {
+			withdraw(asker.level().getServer().getPlayerList().getPlayer(previous.asked()),
+				asker.getUUID());
+			refreshAsked(asker.level().getServer(), previous.asked());
+		}
 
-		Trips.say(asker, "Asked " + them + " to let you come to them");
+		Trips.say(asker, way == Way.THERE
+			? "Asked " + them + " to let you come to them"
+			: "Asked " + them + " to come to you");
 
-		Component accept = Component.literal("[Accept]").withStyle(style -> style
+		String yes = way == Way.THERE ? "Bring " + who + " to you" : "Go to " + who;
+		Component accept = Component.literal(way == Way.THERE ? "[Accept]" : "[Go]").withStyle(style -> style
 			.withColor(ChatFormatting.GREEN).withBold(true)
 			.withClickEvent(new ClickEvent.RunCommand("/tpme accept " + who))
-			.withHoverEvent(new HoverEvent.ShowText(Component.literal("Bring " + who + " to you"))));
-		Component deny = Component.literal("[Deny]").withStyle(style -> style
+			.withHoverEvent(new HoverEvent.ShowText(Component.literal(yes))));
+		Component deny = Component.literal(way == Way.THERE ? "[Deny]" : "[Stay]").withStyle(style -> style
 			.withColor(ChatFormatting.RED).withBold(true)
 			.withClickEvent(new ClickEvent.RunCommand("/tpme deny " + who))
-			.withHoverEvent(new HoverEvent.ShowText(Component.literal("Leave " + who + " where they are"))));
-		host.sendSystemMessage(Component.translatableWithFallback("tp-me-plz.ask", "%s asks to teleport to you. ", who)
-			.withStyle(ChatFormatting.LIGHT_PURPLE)
-			.append(accept).append(Component.literal("  ")).append(deny));
-		TpMenu.refresh(host);
+			.withHoverEvent(new HoverEvent.ShowText(Component.literal(way == Way.THERE
+				? "Leave " + who + " where they are"
+				: "Stay where you are"))));
+		String said = way == Way.THERE
+			? "%s asks to teleport to you. "
+			: "%s asks you to teleport to them. ";
+		Component asking = Component.translatableWithFallback(
+			way == Way.THERE ? "tp-me-plz.ask" : "tp-me-plz.ask-here", said, who);
+
+		// A question with an answer, which is what the tray is for: in chat it scrolls away
+		// behind whatever is being said, and the two buttons go with it. A client that cannot
+		// draw the tray still gets them in chat, which is where they have always been.
+		if (PandoricalApi.hasCapability(asked, Capabilities.SCREENS)) {
+			PandoricalApi.notices().offer(asked, new NoticeApi.Notice(
+				asker.getUUID().toString(), NOTICE_KIND,
+				way == Way.THERE ? "minecraft:ender_pearl" : "minecraft:compass",
+				asking.getString(),
+				List.of(new NoticeApi.Choice("accept", "minecraft:lime_dye",
+						way == Way.THERE ? "Bring them" : "Go to them"),
+					new NoticeApi.Choice("deny", "minecraft:barrier",
+						way == Way.THERE ? "Leave them" : "Stay")),
+				TpConfig.requestSeconds()));
+		} else {
+			asked.sendSystemMessage(asking.copy()
+				.withStyle(ChatFormatting.LIGHT_PURPLE)
+				.append(accept).append(Component.literal("  ")).append(deny));
+		}
+		TpMenu.refresh(asked);
 	}
 
-	/** Whether this player is waiting on an answer from that one. */
-	public static boolean asking(ServerPlayer asker, UUID host) {
+	/** Which way this player is waiting on an answer from that one, or null if they are not. */
+	public static Way asking(ServerPlayer asker, UUID asked) {
 		Ask ask = asks.get(asker.getUUID());
-		return ask != null && ask.host().equals(host);
+		return ask != null && ask.asked().equals(asked) ? ask.way() : null;
 	}
 
-	/** The players asking to come to this one, oldest first. */
-	public static List<ServerPlayer> askingOf(ServerPlayer host) {
-		List<ServerPlayer> askers = new ArrayList<>();
+	/** The asks waiting on this player to answer, oldest first. */
+	public static List<Ask> askingOf(ServerPlayer asked) {
+		List<Ask> waiting = new ArrayList<>();
 		asks.values().stream()
-			.filter(ask -> ask.host().equals(host.getUUID()))
+			.filter(ask -> ask.asked().equals(asked.getUUID()))
 			.sorted(java.util.Comparator.comparingLong(Ask::until))
 			.forEach(ask -> {
-				ServerPlayer asker = host.level().getServer().getPlayerList().getPlayer(ask.asker());
-				if (asker != null) askers.add(asker);
+				if (asked.level().getServer().getPlayerList().getPlayer(ask.asker()) != null) waiting.add(ask);
 			});
-		return askers;
+		return waiting;
 	}
 
-	public static void accept(ServerPlayer host, ServerPlayer asker) {
+	/** The player who sent this ask, if they are still on. */
+	public static ServerPlayer askerOf(MinecraftServer server, Ask ask) {
+		return server.getPlayerList().getPlayer(ask.asker());
+	}
+
+	public static void accept(ServerPlayer asked, ServerPlayer asker) {
 		Ask ask = asks.get(asker.getUUID());
-		if (ask == null || !ask.host().equals(host.getUUID())) {
-			Trips.say(host, asker.getGameProfile().name() + " is not asking to come to you");
+		if (ask == null || !ask.asked().equals(asked.getUUID())) {
+			Trips.say(asked, asker.getGameProfile().name() + " is not asking you anything");
 			return;
 		}
 		asks.remove(asker.getUUID());
-		Trips.go(asker, host.level(), host.getX(), host.getY(), host.getZ(), host.getYRot(), asker.getXRot(),
-			"With " + host.getGameProfile().name());
-		Trips.say(host, asker.getGameProfile().name() + " is here");
-		TpMenu.refresh(host);
+		withdraw(asked, asker.getUUID());
+		String who = asker.getGameProfile().name();
+		String them = asked.getGameProfile().name();
+		if (ask.way() == Way.THERE) {
+			Trips.go(asker, asked.level(), asked.getX(), asked.getY(), asked.getZ(),
+				asked.getYRot(), asker.getXRot(), "With " + them);
+			Trips.say(asked, who + " is here");
+		} else if (!Access.allowed(asked)) {
+			// Between the asking and the yes, an op took it away.
+			TpMenu.refuse(asked);
+			Trips.say(asker, them + " cannot teleport any more");
+		} else {
+			Trips.go(asked, asker.level(), asker.getX(), asker.getY(), asker.getZ(),
+				asker.getYRot(), asked.getXRot(), "With " + who);
+			Trips.say(asker, them + " is here");
+		}
+		TpMenu.refresh(asked);
 		TpMenu.refresh(asker);
 	}
 
-	public static void deny(ServerPlayer host, ServerPlayer asker) {
+	public static void deny(ServerPlayer asked, ServerPlayer asker) {
 		Ask ask = asks.get(asker.getUUID());
-		if (ask == null || !ask.host().equals(host.getUUID())) return;
+		if (ask == null || !ask.asked().equals(asked.getUUID())) return;
 		asks.remove(asker.getUUID());
-		Trips.say(asker, host.getGameProfile().name() + " said no");
-		Trips.say(host, "Told " + asker.getGameProfile().name() + " no");
-		TpMenu.refresh(host);
+		withdraw(asked, asker.getUUID());
+		Trips.say(asker, asked.getGameProfile().name() + " said no");
+		Trips.say(asked, "Told " + asker.getGameProfile().name() + " no");
+		TpMenu.refresh(asked);
 		TpMenu.refresh(asker);
 	}
 
@@ -100,23 +208,31 @@ public final class Requests {
 			if (now < ask.until()) continue;
 			asks.remove(ask.asker(), ask);
 			ServerPlayer asker = server.getPlayerList().getPlayer(ask.asker());
-			ServerPlayer host = server.getPlayerList().getPlayer(ask.host());
+			ServerPlayer asked = server.getPlayerList().getPlayer(ask.asked());
 			if (asker != null) {
-				Trips.say(asker, "Your request" + (host != null ? " to " + host.getGameProfile().name() : "") + " lapsed");
+				Trips.say(asker, "Your request" + (asked != null ? " to " + asked.getGameProfile().name() : "") + " lapsed");
 				TpMenu.refresh(asker);
 			}
-			if (host != null) TpMenu.refresh(host);
+			if (asked != null) {
+				withdraw(asked, ask.asker());
+				TpMenu.refresh(asked);
+			}
 		}
 	}
 
 	/** A player who left: nothing they asked stands, and nobody waits on them to answer. */
-	public static void forget(UUID player) {
-		asks.remove(player);
-		asks.values().removeIf(ask -> ask.host().equals(player));
+	public static void forget(MinecraftServer server, UUID player) {
+		Ask theirs = asks.remove(player);
+		// They asked somebody and then logged off. The question cannot be answered now, so it
+		// goes rather than sitting in a tray waiting for a name that is not on any more.
+		if (theirs != null && server != null) {
+			withdraw(server.getPlayerList().getPlayer(theirs.asked()), player);
+		}
+		asks.values().removeIf(ask -> ask.asked().equals(player));
 	}
 
-	private static void refreshHost(MinecraftServer server, UUID host) {
-		ServerPlayer player = server.getPlayerList().getPlayer(host);
+	private static void refreshAsked(MinecraftServer server, UUID asked) {
+		ServerPlayer player = server.getPlayerList().getPlayer(asked);
 		if (player != null) TpMenu.refresh(player);
 	}
 }

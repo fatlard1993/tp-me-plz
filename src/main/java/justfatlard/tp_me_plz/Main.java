@@ -29,12 +29,26 @@ public class Main implements ModInitializer {
 		Access.init();
 		Places.init();
 		TpMenu.register();
+		Requests.register();
 
 		// H, bound for everyone who has not put something else on the slot: a menu a child is
 		// meant to use cannot start behind a trip to the controls screen. Nothing in vanilla is on
 		// H. Moving or clearing it sticks; /tpme opens the same menu either way.
 		PandoricalApi.keybinds().register(MOD_ID + ":menu", KEY_H, "Teleport Menu", TpMenu::openFor);
 		PandoricalApi.keybinds().bindByDefault(MOD_ID + ":menu");
+		// The command rather than the keybind: /tpme opens a screen of big buttons for every
+		// target, so one way in is all this needs. Promoting home, spawn and the rest would be a
+		// menu of buttons that opens a menu of buttons.
+		PandoricalApi.actionMenus().suggestButton(justfatlard.pandorical.api.ActionMenuApi.Button
+			.runs("minecraft:ender_pearl", "Teleport", "tpme"));
+		PandoricalApi.commandHelp().describe("/tpme",
+			"Open the teleport menu: home, spawn, your last death, and places you have saved.");
+		PandoricalApi.commandHelp().describe("/tpme newplace",
+			"Save where you are standing as a place you can come back to.");
+		PandoricalApi.commandHelp().describe("/tpme ask <player>",
+			"Ask somebody to let you teleport to them.");
+		PandoricalApi.commandHelp().describe("/tpme bring <player>",
+			"Ask somebody to teleport to you. They decide, the same as you would.");
 
 		// And a pearl on the inventory's header row, left of Chest Utils' sort: a controller has
 		// no button for a pooled key past the fourth, and every screen has the inventory.
@@ -48,7 +62,7 @@ public class Main implements ModInitializer {
 		ServerTickEvents.END_SERVER_TICK.register(Requests::tick);
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> TpMenu.refreshAll(server));
 		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
-			Requests.forget(handler.getPlayer().getUUID());
+			Requests.forget(handler.getPlayer().level().getServer(), handler.getPlayer().getUUID());
 			TpMenu.forget(handler.getPlayer().getUUID());
 			// A frame later, so the list no longer has the player who is leaving.
 			server.execute(() -> TpMenu.refreshAll(server));
