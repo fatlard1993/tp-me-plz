@@ -5,14 +5,20 @@
   ],
   "versions": {
     "1.1.0": [
-      "A request to teleport now arrives in the notice tray with buttons to accept or deny, and still comes through chat for a game that cannot draw the tray. You can also ask somebody to come to you with /tpme bring, and they answer it the same way you would.",
-      "Every trip puts you down near where you asked rather than in a wall, in lava or inside somebody else, and several people arriving at once land beside each other instead of in a pile. The menu is cut to the window it opens in, and both of its lists scroll rather than running off the bottom."
+      "A teleport request arrives in the notice tray, with buttons to accept or deny.",
+      "It still comes through chat for a game that cannot draw the tray.",
+      "/tpme bring asks somebody to come to you.",
+      "Every trip puts you down near where you asked, not in a wall or in lava.",
+      "Several people arriving at once land beside each other.",
+      "The menu fits its window, and its lists scroll."
     ],
     "1.0.1": [
       "A version number of its own, so the file could go up again. Nothing in the mod itself changed."
     ],
     "1.0.0": [
-      "The menu itself: home is wherever you would respawn, spawn is the world's, last death comes from Dead Heads and your geode from Amethyst Door, and your own places are saved where you stand with a picture and a name you can skip.",
+      "Home is wherever you would respawn. Spawn is the world's.",
+      "Last death comes from Dead Heads, your geode from Amethyst Door.",
+      "Your own places are saved where you stand, with a picture and a name you can skip.",
       "It keeps itself current while it is open, and a request to travel lapses after a minute."
     ]
   }

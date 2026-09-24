@@ -119,9 +119,19 @@ public final class Requests {
 		Component asking = Component.translatableWithFallback(
 			way == Way.THERE ? "tp-me-plz.ask" : "tp-me-plz.ask-here", said, who);
 
-		// A question with an answer, which is what the tray is for: in chat it scrolls away
-		// behind whatever is being said, and the two buttons go with it. A client that cannot
-		// draw the tray still gets them in chat, which is where they have always been.
+		// Chat always, tray as well where it can be drawn.
+		//
+		// The tray alone was a mistake. It keeps the question instead of letting it scroll away,
+		// which is the right thing for a question to do, but a notice arriving is a quiet bell and
+		// a small badge in the corner, and the tray behind a keybind the player was never told
+		// about and may not have bound. The request was arriving perfectly and being missed
+		// entirely, which from the asker's side looks exactly like the mod being broken.
+		//
+		// So the line that was always there stays there, buttons and all, and the tray is the
+		// copy that waits. Answering either one withdraws the other.
+		asked.sendSystemMessage(asking.copy()
+			.withStyle(ChatFormatting.LIGHT_PURPLE)
+			.append(accept).append(Component.literal("  ")).append(deny));
 		if (PandoricalApi.hasCapability(asked, Capabilities.SCREENS)) {
 			PandoricalApi.notices().offer(asked, new NoticeApi.Notice(
 				asker.getUUID().toString(), NOTICE_KIND,
@@ -132,10 +142,6 @@ public final class Requests {
 					new NoticeApi.Choice("deny", "minecraft:barrier",
 						way == Way.THERE ? "Leave them" : "Stay")),
 				TpConfig.requestSeconds()));
-		} else {
-			asked.sendSystemMessage(asking.copy()
-				.withStyle(ChatFormatting.LIGHT_PURPLE)
-				.append(accept).append(Component.literal("  ")).append(deny));
 		}
 		TpMenu.refresh(asked);
 	}
