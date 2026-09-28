@@ -4,6 +4,10 @@
     "Asking to visit somebody waits on their yes."
   ],
   "versions": {
+    "1.2.0": [
+      "A teleport request is a notice and nothing else. It stopped doubling up in chat.",
+      "A client without Pandorical still gets the clickable line, since it has no tray."
+    ],
     "1.1.0": [
       "A teleport request arrives in the notice tray, with buttons to accept or deny.",
       "It still comes through chat for a game that cannot draw the tray.",

@@ -119,19 +119,15 @@ public final class Requests {
 		Component asking = Component.translatableWithFallback(
 			way == Way.THERE ? "tp-me-plz.ask" : "tp-me-plz.ask-here", said, who);
 
-		// Chat always, tray as well where it can be drawn.
+		// The tray where it can be drawn, chat where it cannot.
 		//
-		// The tray alone was a mistake. It keeps the question instead of letting it scroll away,
-		// which is the right thing for a question to do, but a notice arriving is a quiet bell and
-		// a small badge in the corner, and the tray behind a keybind the player was never told
-		// about and may not have bound. The request was arriving perfectly and being missed
-		// entirely, which from the asker's side looks exactly like the mod being broken.
+		// It went to chat as well for a while, because the tray was not yet worth trusting: a
+		// notice was a quiet bell and a badge clipped to a sliver in the corner, opened by a key
+		// nobody had been told about. Requests arrived perfectly and were missed entirely.
 		//
-		// So the line that was always there stays there, buttons and all, and the tray is the
-		// copy that waits. Answering either one withdraws the other.
-		asked.sendSystemMessage(asking.copy()
-			.withStyle(ChatFormatting.LIGHT_PURPLE)
-			.append(accept).append(Component.literal("  ")).append(deny));
+		// The badge says what is waiting and names the key, or the pad button, that opens it, and
+		// goes quiet once it has been looked at. So the chat copy is no longer a safety net, only
+		// a second thing to read and a second thing to dismiss.
 		if (PandoricalApi.hasCapability(asked, Capabilities.SCREENS)) {
 			PandoricalApi.notices().offer(asked, new NoticeApi.Notice(
 				asker.getUUID().toString(), NOTICE_KIND,
@@ -142,6 +138,11 @@ public final class Requests {
 					new NoticeApi.Choice("deny", "minecraft:barrier",
 						way == Way.THERE ? "Leave them" : "Stay")),
 				TpConfig.requestSeconds()));
+		} else {
+			// No Pandorical, no tray: the clickable line is the whole of what this player gets.
+			asked.sendSystemMessage(asking.copy()
+				.withStyle(ChatFormatting.LIGHT_PURPLE)
+				.append(accept).append(Component.literal("  ")).append(deny));
 		}
 		TpMenu.refresh(asked);
 	}
