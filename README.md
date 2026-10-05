@@ -47,10 +47,7 @@ An ender pearl button at the top right of the inventory screen opens it too, for
 
 ## Pandorical
 
-Pandorical is required on the server. The menu of faces, the keybind that opens it, the button on
-the inventory screen and the mod's page of the mod menu are all its. A client without Pandorical
-keeps every part of the mod that is words: `/tpme` and the requests it sends arrive as clickable
-text in chat.
+Pandorical is required on the server. The menu of faces, the keybind that opens it, the button on the inventory screen and the mod's page of the mod menu are all its. A client without Pandorical keeps every part of the mod that is words: `/tpme` and the requests it sends arrive as clickable text in chat.
 
 ## Configuration
 
