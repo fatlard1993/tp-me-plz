@@ -33,7 +33,7 @@ public final class Showcase implements FabricClientGameTest {
 			connection.waitForChunksRender();
 			server.waitFor(s -> PandoricalApi.isAvailable(connection.getServerPlayer()));
 
-			server.runCommand("gamerule doDaylightCycle false");
+			server.runCommand("gamerule advance_time false");
 			server.runCommand("time set noon");
 			server.runCommand("gamemode creative @a");
 			server.runCommand("recipe give @a *");
