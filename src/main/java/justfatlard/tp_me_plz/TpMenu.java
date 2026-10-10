@@ -50,7 +50,7 @@ public final class TpMenu {
 	public static final String PICKER = "tp-me-plz:picture";
 
 	private static final boolean DEAD_HEADS = FabricLoader.getInstance().isModLoaded("dead-heads");
-	private static final boolean GEODES = FabricLoader.getInstance().isModLoaded("amethyst-door-justfatlard");
+	static final boolean GEODES = FabricLoader.getInstance().isModLoaded("amethyst-door-justfatlard");
 
 	private static final int PAD = 8;
 	private static final int TOP = 20;

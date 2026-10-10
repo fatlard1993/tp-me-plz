@@ -1,5 +1,6 @@
 package justfatlard.tp_me_plz;
 
+import justfatlard.pandorical.api.ActionMenuApi;
 import justfatlard.pandorical.api.PandoricalApi;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
@@ -36,11 +37,19 @@ public class Main implements ModInitializer {
 		// H. Moving or clearing it sticks; /tpme opens the same menu either way.
 		PandoricalApi.keybinds().register(MOD_ID + ":menu", KEY_H, "Teleport Menu", TpMenu::openFor);
 		PandoricalApi.keybinds().bindByDefault(MOD_ID + ":menu");
-		// The command rather than the keybind: /tpme opens a screen of big buttons for every
-		// target, so one way in is all this needs. Promoting home, spawn and the rest would be a
-		// menu of buttons that opens a menu of buttons.
-		PandoricalApi.actionMenus().suggestButton(justfatlard.pandorical.api.ActionMenuApi.Button
-			.runs("minecraft:ender_pearl", "Teleport", "tpme"));
+		// A menu of its own: the whole screen first, which is where a player goes to pick a saved
+		// place, then the trips that need nothing picked, one press each, and asking and bringing,
+		// which ask who by face.
+		java.util.List<ActionMenuApi.Button> trips = new java.util.ArrayList<>(java.util.List.of(
+			ActionMenuApi.Button.runs("minecraft:ender_pearl", "Teleport", "tpme"),
+			ActionMenuApi.Button.runs("minecraft:red_bed", "Home", "tpme home"),
+			ActionMenuApi.Button.runs("minecraft:compass", "Spawn", "tpme spawn"),
+			ActionMenuApi.Button.runs("minecraft:recovery_compass", "Last death", "tpme death")));
+		if (TpMenu.GEODES) trips.add(ActionMenuApi.Button.runs("minecraft:amethyst_cluster", "Geode", "tpme geode"));
+		trips.add(ActionMenuApi.Button.runs("minecraft:filled_map", "Save place", "tpme newplace"));
+		trips.add(ActionMenuApi.Button.runs("minecraft:player_head", "Ask", "tpme ask {player}"));
+		trips.add(ActionMenuApi.Button.runs("minecraft:lead", "Bring", "tpme bring {player}"));
+		PandoricalApi.actionMenus().suggestMenu(MOD_ID + ":teleport", "Teleport", trips);
 		PandoricalApi.commandHelp().describe("/tpme",
 			"Open the teleport menu: home, spawn, your last death, and places you have saved.");
 		PandoricalApi.commandHelp().describe("/tpme newplace",
