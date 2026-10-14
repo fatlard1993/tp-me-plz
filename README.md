@@ -34,7 +34,7 @@ Asking somebody to come to **you** is the one place this cuts the other way. A y
 
 ## Opening it
 
-**H** opens it. The key is **Teleport Menu**, under Pandorical in the controls, and on this mod's Keys tab in the mod menu, where it can be moved by pressing the key you want. H is put on once, for anyone who has not bound that slot to something else; moving or clearing it afterwards sticks. On a client older than Pandorical 1.3.9 the key starts unbound.
+**H** opens it. The key is **Teleport Menu**, under Pandorical in the controls, and on this mod's Keys tab in the mod menu, where it can be moved by pressing the key you want. H is put on once, for anyone who has not bound that slot to something else; moving or clearing it afterwards sticks.
 
 An ender pearl button at the top right of the inventory screen opens it too, for a controller, which has no button for the key.
 
@@ -43,7 +43,7 @@ An ender pearl button at the top right of the inventory screen opens it too, for
 ## Requirements
 
 - Minecraft 26.3 snapshots, Fabric Loader, Fabric API
-- [Pandorical](https://github.com/fatlard1993/pandorical) 1.3.9 or later on the server, and on clients for the menu, the key and the inventory button; a client without it gets `/tpme` as clickable words in chat. The faces in the menu need Pandorical 1.3.9 or later on the client.
+- [Pandorical](https://github.com/fatlard1993/pandorical) 15.17 or later on the server, and on clients for the menu, the key and the inventory button; a client without it gets `/tpme` as clickable words in chat.
 
 ## Pandorical
 
