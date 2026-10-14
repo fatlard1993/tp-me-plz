@@ -42,8 +42,8 @@ An ender pearl button at the top right of the inventory screen opens it too, for
 
 ## Requirements
 
-- Minecraft 26.3 snapshots, Fabric Loader, Fabric API
-- [Pandorical](https://github.com/fatlard1993/pandorical) 15.17 or later on the server, and on clients for the menu, the key and the inventory button; a client without it gets `/tpme` as clickable words in chat.
+- Minecraft, Fabric Loader, Fabric API
+- [Pandorical](https://github.com/fatlard1993/pandorical) on the server, and on clients for the menu, the key and the inventory button; a client without it gets `/tpme` as clickable words in chat.
 
 ## Pandorical
 
