@@ -99,6 +99,10 @@ public final class TpCommands {
 			TpMenu.refuse(player);
 			return 0;
 		}
+		if (Trips.inArena(player)) {
+			Trips.sayArena(player);
+			return 0;
+		}
 		action.accept(player);
 		return 1;
 	}

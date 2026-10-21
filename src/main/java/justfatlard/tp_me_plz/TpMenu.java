@@ -127,6 +127,10 @@ public final class TpMenu {
 			refuse(player);
 			return;
 		}
+		if (Trips.inArena(player)) {
+			Trips.sayArena(player);
+			return;
+		}
 		if (!PandoricalApi.isAvailable(player)) {
 			inChat(player);
 			return;
@@ -531,6 +535,10 @@ public final class TpMenu {
 		// Answering is not a use of the menu: whoever was asked may say yes or no either way,
 		// and where a yes would move them it is their own teleporting that was checked to ask.
 		if (id == null || !Access.allowed(player) && !id.startsWith("accept:") && !id.startsWith("deny:")) return;
+		if (Trips.inArena(player) && !id.startsWith("deny:")) {
+			Trips.sayArena(player);
+			return;
+		}
 
 		switch (id) {
 			case "home" -> leave(player, Places::home);

@@ -25,6 +25,10 @@ public final class Trips {
 	 */
 	public static void go(ServerPlayer player, ServerLevel level, double x, double y, double z,
 			float yaw, float pitch, String arrived) {
+		if (inArena(player) || isArena(level)) {
+			sayArena(player);
+			return;
+		}
 		Landing.Spot spot = Landing.near(player, level, x, y, z);
 		Vec3 at = spot.at();
 		ServerLevel from = player.level();
@@ -38,6 +42,24 @@ public final class Trips {
 		// somebody dropped into lava deserves to know it was not a near miss.
 		if (!spot.found()) say(player, "Nothing safe to stand on there - mind your step");
 		else if (arrived != null) say(player, arrived);
+	}
+
+	/**
+	 * PvP Dimensions' arenas. Going in and out of one is that mod's door, where what a player
+	 * carried is put aside and handed back; a trip would walk past it either way.
+	 */
+	private static final String ARENAS = "pvp-dimensions-justfatlard";
+
+	public static boolean inArena(ServerPlayer player) {
+		return isArena(player.level());
+	}
+
+	private static boolean isArena(ServerLevel level) {
+		return level.dimension().identifier().getNamespace().equals(ARENAS);
+	}
+
+	public static void sayArena(ServerPlayer player) {
+		say(player, "No teleporting in an arena. /pvp leave takes you home");
 	}
 
 	/** To the world's spawn, wherever the world keeps it. */
