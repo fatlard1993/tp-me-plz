@@ -4,6 +4,9 @@
     "Asking to visit somebody waits on their yes."
   ],
   "versions": {
+    "1.2.3": [
+      "Works with Pandorical as old as 15.13.0. Before 15.17 the Teleport menu leaves out Ask and Bring: /tpme ask and /tpme bring still do it."
+    ],
     "1.2.2": [
       "No teleporting into, out of or around a PvP Dimensions arena; /pvp leave is the way home."
     ],

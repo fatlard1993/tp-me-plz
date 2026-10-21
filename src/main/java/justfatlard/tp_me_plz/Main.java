@@ -47,8 +47,11 @@ public class Main implements ModInitializer {
 			ActionMenuApi.Button.runs("minecraft:recovery_compass", "Last death", "tpme death")));
 		if (TpMenu.GEODES) trips.add(ActionMenuApi.Button.runs("minecraft:amethyst_cluster", "Geode", "tpme geode"));
 		trips.add(ActionMenuApi.Button.runs("minecraft:filled_map", "Save place", "tpme newplace"));
-		trips.add(ActionMenuApi.Button.runs("minecraft:player_head", "Ask", "tpme ask {player}"));
-		trips.add(ActionMenuApi.Button.runs("minecraft:lead", "Bring", "tpme bring {player}"));
+		// A Pandorical before 15.17 sends {player} as typed, so there asking stays a command.
+		if (PandoricalVersion.atLeast("15.17.0")) {
+			trips.add(ActionMenuApi.Button.runs("minecraft:player_head", "Ask", "tpme ask {player}"));
+			trips.add(ActionMenuApi.Button.runs("minecraft:lead", "Bring", "tpme bring {player}"));
+		}
 		PandoricalApi.actionMenus().suggestMenu(MOD_ID + ":teleport", "Teleport", trips);
 		PandoricalApi.commandHelp().describe("/tpme",
 			"Open the teleport menu: home, spawn, your last death, and places you have saved.");
