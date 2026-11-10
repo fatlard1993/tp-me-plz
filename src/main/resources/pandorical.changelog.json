@@ -4,12 +4,6 @@
     "Asking to visit somebody waits on their yes."
   ],
   "versions": {
-    "1.2.5": [
-      "Its tests draw a small window unless taking pictures, which runs them faster; nothing in play changes."
-    ],
-    "1.2.4": [
-      "Mod Menu's Donate button leads to sponsoring the author on GitHub. Nothing in play changes."
-    ],
     "1.2.3": [
       "Works with Pandorical as old as 15.13.0. Before 15.17 the Teleport menu leaves out Ask and Bring: /tpme ask and /tpme bring still do it."
     ],
@@ -31,9 +25,6 @@
       "Every trip puts you down near where you asked, not in a wall or in lava.",
       "Several people arriving at once land beside each other.",
       "The menu fits its window, and its lists scroll."
-    ],
-    "1.0.1": [
-      "A version number of its own, so the file could go up again. Nothing in the mod itself changed."
     ],
     "1.0.0": [
       "Home is wherever you would respawn. Spawn is the world's.",
