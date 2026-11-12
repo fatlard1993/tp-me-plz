@@ -76,8 +76,9 @@ public class Main implements ModInitializer {
 		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
 			Requests.forget(handler.getPlayer().level().getServer(), handler.getPlayer().getUUID());
 			TpMenu.forget(handler.getPlayer().getUUID());
-			// A frame later, so the list no longer has the player who is leaving.
-			server.execute(() -> TpMenu.refreshAll(server));
+			// A frame later, so the list no longer has the player who is leaving. Scheduled, not
+			// executed: this runs on the server thread, where execute would refresh it right now.
+			server.schedule(new net.minecraft.server.TickTask(server.getTickCount(), () -> TpMenu.refreshAll(server)));
 		});
 
 		TpConfig.menu();
