@@ -16,17 +16,22 @@ dependencies {
 	// Optional integrations, compiled against the sibling checkouts' jars and never bundled: the
 	// geode button needs amethyst-door and the last-death button dead-heads, and each shows only
 	// where its mod is installed.
-	[["amethyst-door", "amethyst-door-justfatlard"], ["dead-heads", "dead-heads"]].each { pair ->
-		def properties = file("../${pair[0]}/gradle.properties")
+	//
+	// Each sibling's path is written out whole: the nightly release finds what to clone and build
+	// first by reading these paths, and one assembled from a variable is invisible to it.
+	[[file("../amethyst-door/gradle.properties"), "amethyst-door-justfatlard"],
+	 [file("../dead-heads/gradle.properties"), "dead-heads"]].each { pair ->
+		def properties = pair[0]
+		def mod = properties.parentFile.name
 		if (!properties.exists()) return
 		def version = new Properties().with {
 			properties.withInputStream { load(it) }
 			getProperty("mod_version")
 		}
-		def jar = file("../${pair[0]}/build/libs/${pair[1]}-${version}.jar")
+		def jar = new File(properties.parentFile, "build/libs/${pair[1]}-${version}.jar")
 		if (!jar.exists()) {
-			throw new GradleException("${pair[0]} ${version} is not built. Run `mc-build ${pair[0]}`" +
-				" (or ./gradlew build in ../${pair[0]}) first - this mod compiles against its API.")
+			throw new GradleException("${mod} ${version} is not built. Run `mc-build ${mod}`" +
+				" (or ./gradlew build in ../${mod}) first - this mod compiles against its API.")
 		}
 		compileOnly files(jar)
 	}
