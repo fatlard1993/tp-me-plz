@@ -36,18 +36,16 @@ Asking somebody to come to **you** is the one place this cuts the other way. A y
 
 **H** opens it. The key is **Teleport Menu**, under Pandorical in the controls, and on this mod's Keys tab in the mod menu, where it can be moved by pressing the key you want. H is put on once, for anyone who has not bound that slot to something else; moving or clearing it afterwards sticks.
 
-An ender pearl button at the top right of the inventory screen opens it too, for a controller, which has no button for the key.
-
 `/tpme` opens the same menu, and each button is also a word: `/tpme home`, `spawn`, `death`, `geode`, `place <name>`, `newplace [name]` (pictured by what is in your hand), `delplace <name>`, `ask <player>` (go to them), `bring <player>` (ask them to come to you), `accept <player>`, `deny <player>`. On a client without Pandorical, `/tpme` lists the same choices in chat as clickable words.
 
 ## Requirements
 
 - Minecraft, Fabric Loader, Fabric API
-- [Pandorical](https://github.com/fatlard1993/pandorical) on the server, and on clients for the menu, the key and the inventory button; a client without it gets `/tpme` as clickable words in chat.
+- [Pandorical](https://github.com/fatlard1993/pandorical) on the server, and on clients for the menu and the key; a client without it gets `/tpme` as clickable words in chat.
 
 ## Pandorical
 
-Pandorical is required on the server. The menu of faces, the keybind that opens it, the button on the inventory screen and the mod's page of the mod menu are all its. A client without Pandorical keeps every part of the mod that is words: `/tpme` and the requests it sends arrive as clickable text in chat.
+Pandorical is required on the server. The menu of faces, the keybind that opens it and the mod's page of the mod menu are all its. A client without Pandorical keeps every part of the mod that is words: `/tpme` and the requests it sends arrive as clickable text in chat.
 
 ## Configuration
 

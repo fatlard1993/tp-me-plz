@@ -6,7 +6,6 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
-import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,12 +60,6 @@ public class Main implements ModInitializer {
 			"Ask somebody to let you teleport to them.");
 		PandoricalApi.commandHelp().describe("/tpme bring <player>",
 			"Ask somebody to teleport to you. They decide, the same as you would.");
-
-		// And a pearl on the inventory's header row, left of Chest Utils' sort: a controller has
-		// no button for a pooled key past the fourth, and every screen has the inventory.
-		Identifier inventory = Identifier.fromNamespaceAndPath(MOD_ID, "menu");
-		PandoricalApi.playerInventory().registerButton(inventory, "open", 142, 4, 12, MOD_ID + ":icon_pearl");
-		PandoricalApi.playerInventory().onButton(inventory, "open", TpMenu::openFor);
 
 		CommandRegistrationCallback.EVENT.register((dispatcher, registry, environment) ->
 			TpCommands.register(dispatcher));

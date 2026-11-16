@@ -194,8 +194,7 @@ def scale(pixels, n):
 
 
 def build_icon():
-    """The ender pearl is the game's own picture of going somewhere at once, and the pearl the
-    inventory button wears, so that is the icon."""
+    """The ender pearl is the game's own picture of going somewhere at once, so that is the icon."""
     return scale(vanilla("item/ender_pearl.png"), 8)
 
 
