@@ -118,6 +118,7 @@ public final class TpMenu {
 		screens.onClose(PICKER, player -> {
 			newPlace.remove(player.getUUID());
 			typed.remove(player.getUUID());
+			pickerPictures.remove(player.getUUID());
 		});
 	}
 
@@ -169,6 +170,7 @@ public final class TpMenu {
 		deleting.remove(player);
 		newPlace.remove(player);
 		typed.remove(player);
+		pickerPictures.remove(player);
 	}
 
 	// --- The menu ---
