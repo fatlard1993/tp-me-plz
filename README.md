@@ -32,6 +32,8 @@ Answering a request needs none of this: anyone asked can say yes or no, from cha
 
 Asking somebody to come to **you** is the one place this cuts the other way. A yes moves *them*, so it is their teleporting being used, and the ask is refused unless they have it. Otherwise anyone given the menu could ferry somebody who was not, and the setting above would mean nothing.
 
+Some places have a door of their own, and a trip never walks past it: nobody teleports into or out of a [PvP Dimensions](https://github.com/fatlard1993/pvp-dimensions) arena, or into a [Minicraft](https://github.com/fatlard1993/minicraft) workshop, which is reached from a Miniature Bench. A builder can still teleport out of the workshop; their visit ends as it would by stepping out.
+
 ## Opening it
 
 **H** opens it. The key is **Teleport Menu**, under Pandorical in the controls, and on this mod's Keys tab in the mod menu, where it can be moved by pressing the key you want. H is put on once, for anyone who has not bound that slot to something else; moving or clearing it afterwards sticks.

@@ -117,3 +117,18 @@ fabricApi {
 
 // Pandorical's test kit, Pictures included.
 apply from: file("../pandorical/testsupport.gradle")
+
+// The game tests try a trip into Minicraft's workshop, so they load Minicraft. Test-only: the mod
+// itself knows the workshop by name and nothing more.
+dependencies {
+	def minicraftProperties = file("../minicraft/gradle.properties")
+	if (minicraftProperties.exists()) {
+		def props = new Properties().with { minicraftProperties.withInputStream { load(it) }; it }
+		def jar = file("../minicraft/build/libs/minicraft-${props.getProperty("mod_version")}.jar")
+		if (!jar.exists()) jar = file("../minicraft/build/libs/${props.getProperty("mod_id")}-${props.getProperty("mod_version")}.jar")
+		if (!jar.exists()) {
+			throw new GradleException("The game tests load ${jar.name}: run `mc-build minicraft` (or ./gradlew build in ../minicraft) first.")
+		}
+		gametestRuntimeOnly files(jar)
+	}
+}

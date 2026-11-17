@@ -29,6 +29,10 @@ public final class Trips {
 			sayArena(player);
 			return;
 		}
+		if (isWorkshop(level) && player.level() != level) {
+			say(player, "The workshop is reached from a Miniature Bench, not by teleport");
+			return;
+		}
 		Landing.Spot spot = Landing.near(player, level, x, y, z);
 		Vec3 at = spot.at();
 		ServerLevel from = player.level();
@@ -56,6 +60,17 @@ public final class Trips {
 
 	private static boolean isArena(ServerLevel level) {
 		return level.dimension().identifier().getNamespace().equals(ARENAS);
+	}
+
+	/**
+	 * Minicraft's workshop. Its way in is a bench, which puts what a builder carries aside and lends
+	 * them the bench's materials; anybody arriving any other way has no business there. The way out
+	 * is anyone's: leaving ends a builder's visit wherever it takes them.
+	 */
+	private static final String WORKSHOP = "minicraft-justfatlard";
+
+	private static boolean isWorkshop(ServerLevel level) {
+		return level.dimension().identifier().getNamespace().equals(WORKSHOP);
 	}
 
 	public static void sayArena(ServerPlayer player) {

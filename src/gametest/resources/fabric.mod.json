@@ -3,12 +3,13 @@
 	"id": "tp-me-plz-gametest",
 	"version": "1.0.0",
 	"name": "TP Me Plz game tests",
-	"description": "The pictures for the readme and the mod page.",
+	"description": "The pictures for the readme and the mod page, and no trips into the workshop.",
 	"license": "MIT",
 	"environment": "*",
 	"entrypoints": {
 		"fabric-client-gametest": [
-			"justfatlard.tp_me_plz.gametest.Showcase"
+			"justfatlard.tp_me_plz.gametest.Showcase",
+			"justfatlard.tp_me_plz.gametest.NoTripsIn"
 		]
 	},
 	"depends": {

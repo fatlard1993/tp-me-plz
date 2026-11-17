@@ -4,6 +4,9 @@
     "Asking to visit somebody waits on their yes."
   ],
   "versions": {
+    "1.2.7": [
+      "No trip lands in a Miniature Bench's workshop, which is reached from a bench."
+    ],
     "1.2.6": [
       "The pictures a new place was offered are dropped when the picker closes or the player leaves, not kept for everyone who ever opened it.",
       "The inventory screen no longer has a teleport button; H and /tpme still open the menu."
