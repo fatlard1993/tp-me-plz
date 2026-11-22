@@ -3,7 +3,7 @@
   "id": "tp-me-plz",
   "version": "${version}",
   "name": "TP Me Plz",
-  "description": "A small teleport menu on a key: home, spawn, last death, your geode, and asking to join another player",
+  "description": "A teleport menu on a key: home, spawn, last death, and joining a friend",
   "authors": [
     "justfatlard"
   ],
