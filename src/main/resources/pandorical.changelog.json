@@ -4,6 +4,9 @@
     "Asking to visit somebody waits on their yes."
   ],
   "versions": {
+    "1.2.8": [
+      "Describes itself in one short line of what it adds."
+    ],
     "1.2.7": [
       "No trip lands in a Miniature Bench's workshop, which is reached from a bench."
     ],
