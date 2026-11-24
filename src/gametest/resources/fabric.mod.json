@@ -9,7 +9,8 @@
 	"entrypoints": {
 		"fabric-client-gametest": [
 			"justfatlard.tp_me_plz.gametest.Showcase",
-			"justfatlard.tp_me_plz.gametest.NoTripsIn"
+			"justfatlard.tp_me_plz.gametest.NoTripsIn",
+			"justfatlard.tp_me_plz.gametest.SharedPlacesTest"
 		]
 	},
 	"depends": {

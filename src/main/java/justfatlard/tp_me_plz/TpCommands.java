@@ -26,9 +26,12 @@ public final class TpCommands {
 			.then(Commands.literal("place")
 				.then(Commands.argument("name", StringArgumentType.greedyString())
 					.executes(context -> run(context, player -> {
-						int index = Places.indexOf(player, StringArgumentType.getString(context, "name"));
-						if (index < 0) Trips.say(player, "You have no place by that name");
-						else Places.go(player, index);
+						String name = StringArgumentType.getString(context, "name");
+						int index = Places.indexOf(player, name);
+						SharedPlaces.Shared shared = index < 0 ? Places.sharedNamed(player, name) : null;
+						if (index >= 0) Places.go(player, index);
+						else if (shared != null) Places.goShared(player, shared);
+						else Trips.say(player, "No place by that name, yours or shared");
 					}))))
 			// For a player without the menu: saved here, pictured by what is in their hand.
 			.then(Commands.literal("newplace")
@@ -38,10 +41,21 @@ public final class TpCommands {
 			.then(Commands.literal("delplace")
 				.then(Commands.argument("name", StringArgumentType.greedyString())
 					.executes(context -> run(context, player -> {
-						int index = Places.indexOf(player, StringArgumentType.getString(context, "name"));
-						if (index < 0) Trips.say(player, "You have no place by that name");
-						else Places.delete(player, index);
+						String name = StringArgumentType.getString(context, "name");
+						int index = Places.indexOf(player, name);
+						SharedPlaces.Shared shared = index < 0 ? Places.sharedNamed(player, name) : null;
+						if (index >= 0) Places.delete(player, index);
+						// Someone else's shared place, which only an op may delete; changeShared says so otherwise
+						else if (shared != null) Places.changeShared(player, shared, true);
+						else Trips.say(player, "You have no place by that name");
+						TpMenu.refreshAll(player.level().getServer());
 					}))))
+			.then(Commands.literal("share")
+				.then(Commands.argument("name", StringArgumentType.greedyString())
+					.executes(context -> run(context, player -> setShared(player, StringArgumentType.getString(context, "name"), true)))))
+			.then(Commands.literal("unshare")
+				.then(Commands.argument("name", StringArgumentType.greedyString())
+					.executes(context -> run(context, player -> setShared(player, StringArgumentType.getString(context, "name"), false)))))
 			.then(Commands.literal("spawn").executes(context -> run(context, Trips::spawn)))
 			.then(Commands.literal("death").executes(context -> run(context, TpMenu::lastDeath)))
 			.then(Commands.literal("geode").executes(context -> run(context, TpMenu::geode)))
@@ -127,5 +141,19 @@ public final class TpCommands {
 			source.sendSuccess(() -> Component.literal("Everyone has it right now anyway: the access setting is \"everyone\""), false);
 		}
 		return players.size();
+	}
+
+	/** Shares one of the player's own places, or makes one private: theirs, or for an op, anyone's shared one. */
+	private static void setShared(ServerPlayer player, String name, boolean share) {
+		int index = Places.indexOf(player, name);
+		if (index >= 0) {
+			if (Places.mine(player).get(index).shared() == share) Trips.say(player, name + " is " + (share ? "shared" : "private") + " already");
+			else Places.toggleShared(player, index);
+		} else {
+			SharedPlaces.Shared shared = share ? null : Places.sharedNamed(player, name);
+			if (shared != null) Places.changeShared(player, shared, false);
+			else Trips.say(player, "You have no place by that name");
+		}
+		TpMenu.refreshAll(player.level().getServer());
 	}
 }

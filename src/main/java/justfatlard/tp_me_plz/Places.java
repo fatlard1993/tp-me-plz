@@ -10,6 +10,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
@@ -26,6 +27,11 @@ import net.minecraft.world.level.portal.TeleportTransition;
  * and there is nothing to keep in step. Everything else a player wants to get back to is a place:
  * where they stood when they saved it, named, and shown by an item of their choosing, which is how
  * somebody who cannot read the name finds it again.
+ *
+ * <p>A place is private until its maker shares it, when it moves to {@link SharedPlaces}: everyone
+ * can go there and see it on the map, and only its maker and ops can delete it or make it private.
+ * A player's own places are the private ones first, then the shared, and both count toward the most
+ * they may have.
  */
 public final class Places {
 	private Places() {}
@@ -97,45 +103,157 @@ public final class Places {
 		return places == null ? List.of() : places;
 	}
 
+	/** One of a player's own places, and whether they have shared it. */
+	public record Own(Place place, boolean shared) {}
+
+	/** A player's own places: the private ones, then those they have shared. */
+	public static List<Own> mine(ServerPlayer player) {
+		reclaim(player);
+		List<Own> mine = new ArrayList<>();
+		for (Place place : of(player)) mine.add(new Own(place, false));
+		for (SharedPlaces.Shared shared : SharedPlaces.get(player.level().getServer()).of(player.getUUID())) mine.add(new Own(shared.place(), true));
+		return mine;
+	}
+
+	/** The places other players have shared, which this one may go to. */
+	public static List<SharedPlaces.Shared> sharedByOthers(ServerPlayer player) {
+		return SharedPlaces.listed(player.level().getServer()).stream().filter(shared -> !shared.owner().equals(player.getUUID())).toList();
+	}
+
+	/** Places an op made private while their maker was away come back to them. */
+	static void reclaim(ServerPlayer player) {
+		List<SharedPlaces.Shared> back = SharedPlaces.get(player.level().getServer()).takeReturning(player.getUUID());
+		if (back.isEmpty()) return;
+		List<Place> places = new ArrayList<>(of(player));
+		for (SharedPlaces.Shared shared : back) places.add(new Place(unique(places, shared.place().name()), shared.place().icon(),
+			shared.place().dimension(), shared.place().x(), shared.place().y(), shared.place().z(), shared.place().yaw(), shared.place().pitch()));
+		player.setAttached(PLACES, List.copyOf(places));
+		Trips.say(player, back.size() == 1 ? back.get(0).place().name() + " is private again" : back.size() + " of your places are private again");
+	}
+
 	public static boolean full(ServerPlayer player) {
-		return of(player).size() >= TpConfig.maxPlaces();
+		return mine(player).size() >= TpConfig.maxPlaces();
+	}
+
+	/** Shares a private place, or makes a shared one private again, by its place among the player's own. */
+	public static void toggleShared(ServerPlayer player, int index) {
+		List<Own> mine = mine(player);
+		if (index < 0 || index >= mine.size()) return;
+		Own own = mine.get(index);
+		SharedPlaces store = SharedPlaces.get(player.level().getServer());
+		if (own.shared()) {
+			SharedPlaces.Shared shared = store.of(player.getUUID()).stream().filter(s -> s.place().equals(own.place())).findFirst().orElse(null);
+			if (shared == null) return;
+			store.remove(shared);
+			List<Place> places = new ArrayList<>(of(player));
+			places.add(own.place());
+			player.setAttached(PLACES, List.copyOf(places));
+			Trips.say(player, own.place().name() + " is private: only you can see it");
+		} else {
+			List<Place> places = new ArrayList<>(of(player));
+			places.remove(own.place());
+			player.setAttached(PLACES, List.copyOf(places));
+			// A shared name is unique among this player's shared places, which are what others tell apart by name
+			List<Place> sharedNames = store.of(player.getUUID()).stream().map(SharedPlaces.Shared::place).toList();
+			Place place = own.place();
+			String name = unique(sharedNames, place.name());
+			if (!name.equals(place.name())) place = new Place(name, place.icon(), place.dimension(), place.x(), place.y(), place.z(), place.yaw(), place.pitch());
+			store.add(new SharedPlaces.Shared(player.getUUID(), player.getGameProfile().name(), place, false));
+			Trips.say(player, place.name() + " is shared: everyone can go there and see it on the map");
+		}
+	}
+
+	/** Whether this player may delete or make private a place shared by someone: its maker, or an op. */
+	public static boolean mayChange(ServerPlayer player, SharedPlaces.Shared shared) {
+		return shared.owner().equals(player.getUUID()) || Access.isOp(player);
+	}
+
+	/** An op's change to someone else's shared place: deleted, or made private and given back to its maker. */
+	public static void changeShared(ServerPlayer player, SharedPlaces.Shared shared, boolean delete) {
+		if (!mayChange(player, shared)) {
+			Trips.say(player, "Only " + shared.ownerName() + " and ops can change " + shared.place().name());
+			return;
+		}
+		MinecraftServer server = player.level().getServer();
+		SharedPlaces store = SharedPlaces.get(server);
+		if (delete) {
+			store.remove(shared);
+			Trips.say(player, "Deleted " + shared.ownerName() + "'s " + shared.place().name());
+			return;
+		}
+		store.returnToOwner(shared);
+		ServerPlayer owner = server.getPlayerList().getPlayer(shared.owner());
+		if (owner != null) reclaim(owner);
+		Trips.say(player, shared.ownerName() + "'s " + shared.place().name() + " is private again");
+	}
+
+	public static void goShared(ServerPlayer player, SharedPlaces.Shared shared) {
+		Place place = shared.place();
+		ServerLevel level = player.level().getServer().getLevel(place.dimension());
+		if (level == null) {
+			Trips.say(player, place.name() + " is somewhere this world no longer has");
+			return;
+		}
+		Trips.go(player, level, place.x(), place.y(), place.z(), place.yaw(), place.pitch(), place.name());
+	}
+
+	/** A place shared by someone else, by name, or null. */
+	public static SharedPlaces.Shared sharedNamed(ServerPlayer player, String name) {
+		for (SharedPlaces.Shared shared : sharedByOthers(player)) if (shared.place().name().equalsIgnoreCase(name)) return shared;
+		return null;
+	}
+
+	/** A place shared by someone else, by the key its menu button carries, or null. */
+	public static SharedPlaces.Shared sharedKeyed(ServerPlayer player, String key) {
+		for (SharedPlaces.Shared shared : SharedPlaces.listed(player.level().getServer())) if (shared.key().equals(key)) return shared;
+		return null;
 	}
 
 	/** A new place where the player stood, with this picture, named as typed or else after the picture. */
 	public static void add(ServerPlayer player, Spot spot, String icon, String typed) {
 		List<Place> places = new ArrayList<>(of(player));
-		if (places.size() >= TpConfig.maxPlaces()) {
-			Trips.say(player, "You have " + places.size() + " places already. Delete one to make room.");
+		int count = mine(player).size();
+		if (count >= TpConfig.maxPlaces()) {
+			Trips.say(player, "You have " + count + " places already. Delete one to make room.");
 			return;
 		}
 		String name = typed == null ? "" : typed.strip();
 		if (name.isEmpty()) name = itemName(icon);
-		name = unique(places, name.length() > 32 ? name.substring(0, 32) : name);
+		// Unique among all the player's own places, shared ones too, so a name always picks out one
+		name = unique(mine(player).stream().map(Own::place).toList(), name.length() > 32 ? name.substring(0, 32) : name);
 		places.add(new Place(name, icon, spot.dimension(), spot.x(), spot.y(), spot.z(), spot.yaw(), spot.pitch()));
 		player.setAttached(PLACES, List.copyOf(places));
 		Trips.say(player, "Saved " + name);
 	}
 
+	/** Deletes one of the player's own places, private or shared, by its place among them. */
 	public static void delete(ServerPlayer player, int index) {
-		List<Place> places = new ArrayList<>(of(player));
-		if (index < 0 || index >= places.size()) return;
-		Place gone = places.remove(index);
-		player.setAttached(PLACES, List.copyOf(places));
-		Trips.say(player, "Deleted " + gone.name());
+		List<Own> mine = mine(player);
+		if (index < 0 || index >= mine.size()) return;
+		Own gone = mine.get(index);
+		if (gone.shared()) {
+			SharedPlaces store = SharedPlaces.get(player.level().getServer());
+			store.of(player.getUUID()).stream().filter(s -> s.place().equals(gone.place())).findFirst().ifPresent(store::remove);
+		} else {
+			List<Place> places = new ArrayList<>(of(player));
+			places.remove(gone.place());
+			player.setAttached(PLACES, List.copyOf(places));
+		}
+		Trips.say(player, "Deleted " + gone.place().name());
 	}
 
 	public static int indexOf(ServerPlayer player, String name) {
-		List<Place> places = of(player);
-		for (int i = 0; i < places.size(); i++) {
-			if (places.get(i).name().equalsIgnoreCase(name)) return i;
+		List<Own> mine = mine(player);
+		for (int i = 0; i < mine.size(); i++) {
+			if (mine.get(i).place().name().equalsIgnoreCase(name)) return i;
 		}
 		return -1;
 	}
 
 	public static void go(ServerPlayer player, int index) {
-		List<Place> places = of(player);
-		if (index < 0 || index >= places.size()) return;
-		Place place = places.get(index);
+		List<Own> mine = mine(player);
+		if (index < 0 || index >= mine.size()) return;
+		Place place = mine.get(index).place();
 		ServerLevel level = player.level().getServer().getLevel(place.dimension());
 		if (level == null) {
 			Trips.say(player, place.name() + " is somewhere this world no longer has");

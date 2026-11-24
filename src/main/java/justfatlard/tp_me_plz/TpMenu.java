@@ -100,8 +100,8 @@ public final class TpMenu {
 
 	/** Whose menu is open, by the screen showing it, so a change can rebuild it for them. */
 	private static final Map<UUID, String> open = new ConcurrentHashMap<>();
-	/** A place waiting on "are you sure", by player. */
-	private static final Map<UUID, Integer> deleting = new ConcurrentHashMap<>();
+	/** A place waiting on "are you sure", by player, as its tile's id. */
+	private static final Map<UUID, String> deleting = new ConcurrentHashMap<>();
 	/** Where a player stood when they asked for a new place, until they pick its picture. */
 	private static final Map<UUID, Places.Spot> newPlace = new ConcurrentHashMap<>();
 	/** What they have typed in the picker's name box, which the box sends as it changes. */
@@ -175,7 +175,15 @@ public final class TpMenu {
 
 	// --- The menu ---
 
-	private record Tile(String id, String item, String word, boolean deletable) {}
+	/**
+	 * @param tip     what hovering says
+	 * @param shared  for a place that can be shared or made private, whether it is now; null for one that cannot
+	 */
+	private record Tile(String id, String item, String word, String tip, boolean deletable, Boolean shared) {
+		Tile(String id, String item, String word) {
+			this(id, item, word, word, false, null);
+		}
+	}
 
 	/**
 	 * The dialog, sized to what is in it and then cut to the window it will be shown in, which the
@@ -302,21 +310,19 @@ public final class TpMenu {
 		others.sort(java.util.Comparator.comparing(p -> p.getGameProfile().name().toLowerCase(java.util.Locale.ROOT)));
 		List<Requests.Ask> askers = Requests.askingOf(player);
 		for (Requests.Ask ask : askers) others.remove(Requests.askerOf(player.level().getServer(), ask));
-		List<Places.Place> places = Places.of(player);
+		List<Places.Own> places = Places.mine(player);
+		List<SharedPlaces.Shared> shared = Places.sharedByOthers(player);
 
-		Integer doomed = deleting.get(player.getUUID());
-		if (doomed == null || doomed >= places.size()) {
-			deleting.remove(player.getUUID());
-			doomed = null;
-		}
+		Places.Place doomed = doomedOf(player, deleting.get(player.getUUID()), places);
+		if (doomed == null) deleting.remove(player.getUUID());
 
-		List<Tile> tiles = tilesFor(player, places);
+		List<Tile> tiles = tilesFor(player, places, shared);
 		Layout at = Layout.fit(PandoricalApi.screens().viewport(player), tiles.size(), askers.size(), others.size());
 		ScreenBuilder screen = new ScreenBuilder(TYPE).title("Teleport").pauseGame(false).size(at.width(), at.height());
 		screen.panel("dialog", 0, 0, at.width(), at.height(), Map.of(ComponentType.PROP_BORDER, "beveled"));
 		screen.component(text("title", PAD, 7, "Teleport"));
 
-		placesPane(screen, at, tiles, places, doomed);
+		placesPane(screen, at, tiles, doomed);
 		peoplePane(screen, at, player, askers, others);
 
 		PandoricalApi.screens().open(player, screen.build());
@@ -331,27 +337,50 @@ public final class TpMenu {
 	 * question: the same row, because the question is about what is under it and because a dialog
 	 * that grows a strip while you are reading it moves everything else out from under the mouse.
 	 */
-	/** The fixed places, then the player's own, then the one that adds another. */
-	private static List<Tile> tilesFor(ServerPlayer player, List<Places.Place> places) {
+	/**
+	 * The fixed places, then the player's own, then the one that adds another, then those other
+	 * players have shared, whose maker's name is in their tooltip.
+	 */
+	private static List<Tile> tilesFor(ServerPlayer player, List<Places.Own> places, List<SharedPlaces.Shared> shared) {
 		List<Tile> tiles = new ArrayList<>();
-		tiles.add(new Tile("home", "minecraft:red_bed", "Home", false));
-		tiles.add(new Tile("spawn", "minecraft:compass", "Spawn", false));
+		tiles.add(new Tile("home", "minecraft:red_bed", "Home"));
+		tiles.add(new Tile("spawn", "minecraft:compass", "Spawn"));
 		if (DEAD_HEADS && justfatlard.tp_me_plz.integration.DeathTrip.has(player)) {
-			tiles.add(new Tile("death", "minecraft:skeleton_skull", "Death", false));
+			tiles.add(new Tile("death", "minecraft:skeleton_skull", "Death"));
 		}
-		if (GEODES) tiles.add(new Tile("geode", "minecraft:amethyst_cluster", "Geode", false));
+		if (GEODES) tiles.add(new Tile("geode", "minecraft:amethyst_cluster", "Geode"));
 		for (int i = 0; i < places.size(); i++) {
-			tiles.add(new Tile("place:" + i, places.get(i).icon(), places.get(i).name(), true));
+			Places.Own own = places.get(i);
+			tiles.add(new Tile("place:" + i, own.place().icon(), own.place().name(),
+				own.place().name() + (own.shared() ? ", shared with everyone" : ""), true, own.shared()));
 		}
-		if (!Places.full(player)) tiles.add(new Tile("new", "minecraft:writable_book", "New", false));
+		if (!Places.full(player)) tiles.add(new Tile("new", "minecraft:writable_book", "New"));
+		for (SharedPlaces.Shared other : shared) {
+			boolean changes = Places.mayChange(player, other);
+			tiles.add(new Tile("shared:" + other.key(), other.place().icon(), other.place().name(),
+				other.place().name() + ", shared by " + other.ownerName(), changes, changes ? Boolean.TRUE : null));
+		}
 		return tiles;
 	}
 
-	private static void placesPane(ScreenBuilder screen, Layout at, List<Tile> tiles,
-			List<Places.Place> places, Integer doomed) {
+	/** The place a tile id names, among the player's own or those shared, or null when it is gone. */
+	private static Places.Place doomedOf(ServerPlayer player, String tile, List<Places.Own> places) {
+		if (tile == null) return null;
+		if (tile.startsWith("place:")) {
+			int index = parse(tile.substring("place:".length()));
+			return index >= 0 && index < places.size() ? places.get(index).place() : null;
+		}
+		if (tile.startsWith("shared:")) {
+			SharedPlaces.Shared shared = Places.sharedKeyed(player, tile.substring("shared:".length()));
+			return shared != null && Places.mayChange(player, shared) ? shared.place() : null;
+		}
+		return null;
+	}
+
+	private static void placesPane(ScreenBuilder screen, Layout at, List<Tile> tiles, Places.Place doomed) {
 		screen.panel("places_well", at.placesX(), at.placesY(), at.placesW(), at.placesH(), WELL_STYLE);
 		if (doomed == null) heading(screen, "places", at.placesX(), TOP, at.placesW(), "minecraft:filled_map", "Places");
-		else confirm(screen, at, places.get(doomed));
+		else confirm(screen, at, doomed);
 
 		int letters = Math.max(4, at.tileW() / 6 - 1);
 		List<ComponentDef> grid = new ArrayList<>();
@@ -360,7 +389,7 @@ public final class TpMenu {
 			int x = (i % at.columns()) * (at.tileW() + GAP);
 			int y = (i / at.columns()) * (TILE + GAP);
 			grid.add(button(tile.id(), x, y, at.tileW(), TILE,
-				Map.of(ComponentType.PROP_TOOLTIP, tile.word())).build());
+				Map.of(ComponentType.PROP_TOOLTIP, tile.tip())).build());
 			grid.add(icon(tile.id() + "_icon", tile.item(), x + (at.tileW() - ICON) / 2, y + 7, TILE_ICON_SCALE).build());
 			grid.add(new ComponentBuilder(tile.id() + "_word", ComponentType.TEXT)
 				.bounds(x, y + TILE - 11, at.tileW(), 10)
@@ -368,10 +397,18 @@ public final class TpMenu {
 				.prop(ComponentType.PROP_ALIGN, "center")
 				.prop(ComponentType.PROP_SHADOW, "true")
 				.build());
+			// Sharing in the other corner: a filled star is shared with everyone, an empty one only yours
+			if (tile.shared() != null) {
+				String tip = tile.shared()
+					? (tile.id().startsWith("shared:") ? "Make " + tile.word() + " private, given back to its maker" : "Shared with everyone: make it private")
+					: "Private: share it with everyone, on the map too";
+				grid.add(button("toggle:" + tile.id(), x + 1, y + 1, 11, 11,
+					Map.of(ComponentType.PROP_LABEL, tile.shared() ? "★" : "☆", ComponentType.PROP_TOOLTIP, tip)).build());
+			}
 			if (!tile.deletable()) continue;
 			// Small, and in a corner, on purpose: deleting is the one thing here that loses
 			// something, and it asks first.
-			grid.add(button("delete:" + tile.id().substring("place:".length()), x + at.tileW() - 12, y + 1, 11, 11,
+			grid.add(button("delete:" + tile.id(), x + at.tileW() - 12, y + 1, 11, 11,
 				Map.of(ComponentType.PROP_LABEL, "✕", ComponentType.PROP_TOOLTIP, "Delete " + tile.word())).build());
 		}
 		int rows = (tiles.size() + at.columns() - 1) / at.columns();
@@ -549,9 +586,13 @@ public final class TpMenu {
 			case "geode" -> leave(player, TpMenu::geode);
 			case "new" -> pickPicture(player);
 			case "delete_yes" -> {
-				Integer index = deleting.remove(player.getUUID());
-				if (index != null) Places.delete(player, index);
-				show(player);
+				String tile = deleting.remove(player.getUUID());
+				if (tile != null && tile.startsWith("place:")) Places.delete(player, parse(tile.substring("place:".length())));
+				else if (tile != null && tile.startsWith("shared:")) {
+					SharedPlaces.Shared shared = Places.sharedKeyed(player, tile.substring("shared:".length()));
+					if (shared != null) Places.changeShared(player, shared, true);
+				}
+				refreshAll(player.level().getServer());
 			}
 			case "delete_no" -> {
 				deleting.remove(player.getUUID());
@@ -567,9 +608,23 @@ public final class TpMenu {
 						int index = parse(rest);
 						leave(player, p -> Places.go(p, index));
 					}
+					case "shared" -> {
+						SharedPlaces.Shared shared = Places.sharedKeyed(player, rest);
+						if (shared == null) show(player);
+						else leave(player, p -> Places.goShared(p, shared));
+					}
 					case "delete" -> {
-						deleting.put(player.getUUID(), parse(rest));
+						deleting.put(player.getUUID(), rest);
 						show(player);
+					}
+					case "toggle" -> {
+						if (rest.startsWith("place:")) Places.toggleShared(player, parse(rest.substring("place:".length())));
+						else if (rest.startsWith("shared:")) {
+							SharedPlaces.Shared shared = Places.sharedKeyed(player, rest.substring("shared:".length()));
+							if (shared != null) Places.changeShared(player, shared, false);
+						}
+						// Everyone's menu shows the shared places, so every open one is rebuilt
+						refreshAll(player.level().getServer());
 					}
 					case "ask", "bring", "accept", "deny" -> {
 						ServerPlayer other = playerOf(player, rest);

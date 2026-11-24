@@ -65,7 +65,11 @@ public class Main implements ModInitializer {
 			TpCommands.register(dispatcher));
 
 		ServerTickEvents.END_SERVER_TICK.register(Requests::tick);
-		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> TpMenu.refreshAll(server));
+		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
+			// Places an op made private while this player was away come back now
+			Places.reclaim(handler.getPlayer());
+			TpMenu.refreshAll(server);
+		});
 		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
 			Requests.forget(handler.getPlayer().level().getServer(), handler.getPlayer().getUUID());
 			TpMenu.forget(handler.getPlayer().getUUID());
