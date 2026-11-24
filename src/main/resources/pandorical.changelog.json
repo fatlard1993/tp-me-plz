@@ -4,6 +4,11 @@
     "Asking to visit somebody waits on their yes."
   ],
   "versions": {
+    "1.2.9": [
+      "A build missing a sibling it compiles against says which one, instead of failing later on its imports.",
+      "How long a request stands is Pandorical's one setting for every mod's requests.",
+      "An older Pandorical no longer keeps this out of a server: requests stand 60 seconds until Pandorical has the shared setting."
+    ],
     "1.2.8": [
       "Describes itself in one short line of what it adds."
     ],
