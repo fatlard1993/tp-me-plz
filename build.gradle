@@ -23,7 +23,10 @@ dependencies {
 	 [file("../dead-heads/gradle.properties"), "dead-heads"]].each { pair ->
 		def properties = pair[0]
 		def mod = properties.parentFile.name
-		if (!properties.exists()) return
+		if (!properties.exists()) {
+			throw new GradleException("../${mod} is not checked out beside this mod - it compiles against its API." +
+				" Clone github.com/fatlard1993/${mod} next to this one.")
+		}
 		def version = new Properties().with {
 			properties.withInputStream { load(it) }
 			getProperty("mod_version")
