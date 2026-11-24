@@ -76,7 +76,12 @@ public final class TpConfig {
 
 	/** How long a request stands: one setting for every mod's requests, on Pandorical's page of the mod menu. */
 	public static int requestSeconds(net.minecraft.server.MinecraftServer server) {
-		return PandoricalApi.notices().requestSeconds(server);
+		try {
+			return PandoricalApi.notices().requestSeconds(server);
+		} catch (LinkageError older) {
+			// A Pandorical from before the shared setting: vanilla-length requests, as before it
+			return 60;
+		}
 	}
 
 	public static int maxPlaces() {
