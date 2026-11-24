@@ -4,6 +4,10 @@
     "Asking to visit somebody waits on their yes."
   ],
   "versions": {
+    "1.3.0": [
+      "A place can be shared: the star on its tile shares it with everyone, who can go there from their own menu, and see it on Web Map. Only whoever made it, and ops, can delete it or make it private again.",
+      "/tpme share and /tpme unshare do the same by name, and /tpme place finds places others shared."
+    ],
     "1.2.9": [
       "A build missing a sibling it compiles against says which one, instead of failing later on its imports.",
       "How long a request stands is Pandorical's one setting for every mod's requests.",
