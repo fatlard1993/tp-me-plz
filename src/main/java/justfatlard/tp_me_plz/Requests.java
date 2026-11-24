@@ -90,7 +90,7 @@ public final class Requests {
 		if (asker == asked) return;
 		String who = asker.getGameProfile().name();
 		String them = asked.getGameProfile().name();
-		long until = asker.level().getGameTime() + 20L * TpConfig.requestSeconds();
+		long until = asker.level().getGameTime() + 20L * TpConfig.requestSeconds(asker.level().getServer());
 		Ask previous = asks.put(asker.getUUID(), new Ask(asker.getUUID(), asked.getUUID(), until, way));
 		if (previous != null && !previous.asked().equals(asked.getUUID())) {
 			withdraw(asker.level().getServer().getPlayerList().getPlayer(previous.asked()),
@@ -137,7 +137,7 @@ public final class Requests {
 						way == Way.THERE ? "Bring them" : "Go to them"),
 					new NoticeApi.Choice("deny", "minecraft:barrier",
 						way == Way.THERE ? "Leave them" : "Stay")),
-				TpConfig.requestSeconds()));
+				TpConfig.requestSeconds(asker.level().getServer())));
 		} else {
 			// No Pandorical, no tray: the clickable line is the whole of what this player gets.
 			asked.sendSystemMessage(asking.copy()

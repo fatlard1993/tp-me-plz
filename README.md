@@ -56,8 +56,9 @@ Pandorical is required on the server. The menu of faces, the keybind that opens 
 | Setting | Default | |
 |---|---|---|
 | `access` | `granted` | `granted`: players given it with `/tpme grant`, and ops. `everyone`: every player. |
-| `request_seconds` | `60` | How long a request to go to a player stands. |
 | `max_places` | `9` | How many places of their own each player can save. |
+
+How long a request stands is one setting for every mod's requests, on Pandorical's page of the mod menu.
 
 All three are also on the mod's page of the mod menu, for ops.
 

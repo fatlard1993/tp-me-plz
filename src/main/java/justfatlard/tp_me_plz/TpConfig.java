@@ -26,7 +26,6 @@ public final class TpConfig {
 	}
 
 	private static Mode access = Mode.GRANTED;
-	private static int requestSeconds = 60;
 	private static int maxPlaces = 9;
 
 	private static final String DEFAULT_CONFIG = """
@@ -38,9 +37,6 @@ public final class TpConfig {
 			#              Ops always have it.
 			#   everyone - every player on the server.
 			access=granted
-
-			# How long a request to go to another player stands before it lapses, in seconds.
-			request_seconds=60
 
 			# How many places of their own each player can save, besides home and spawn.
 			max_places=9
@@ -69,12 +65,6 @@ public final class TpConfig {
 				Main.LOGGER.warn("[{}] max_places is not a number, using 9", Main.MOD_ID);
 				maxPlaces = 9;
 			}
-			try {
-				requestSeconds = Math.clamp(Integer.parseInt(props.getProperty("request_seconds", "60").trim()), 10, 600);
-			} catch (NumberFormatException e) {
-				Main.LOGGER.warn("[{}] request_seconds is not a number, using 60", Main.MOD_ID);
-				requestSeconds = 60;
-			}
 		} catch (IOException e) {
 			Main.LOGGER.error("[{}] Could not read config, using defaults: {}", Main.MOD_ID, e.toString());
 		}
@@ -84,8 +74,9 @@ public final class TpConfig {
 		return access == Mode.EVERYONE;
 	}
 
-	public static int requestSeconds() {
-		return requestSeconds;
+	/** How long a request stands: one setting for every mod's requests, on Pandorical's page of the mod menu. */
+	public static int requestSeconds(net.minecraft.server.MinecraftServer server) {
+		return PandoricalApi.notices().requestSeconds(server);
 	}
 
 	public static int maxPlaces() {
@@ -100,11 +91,6 @@ public final class TpConfig {
 	public static void setAccess(Mode mode) {
 		access = mode;
 		store("access", mode.name().toLowerCase(java.util.Locale.ROOT));
-	}
-
-	public static void setRequestSeconds(int seconds) {
-		requestSeconds = seconds;
-		store("request_seconds", String.valueOf(seconds));
 	}
 
 	/** One value back into the file, keeping its comments and order. */
@@ -139,8 +125,6 @@ public final class TpConfig {
 					setAccess(Mode.valueOf(value.toUpperCase(java.util.Locale.ROOT)));
 					TpMenu.refreshAll(player.level().getServer());
 				});
-		group.number("requestSeconds", "Requests last, seconds", 10, 600, 10, 60)
-			.backedBy(player -> requestSeconds, (player, value) -> setRequestSeconds(value));
 		group.number("maxPlaces", "Places each player can save", 0, 30, 1, 9)
 			.backedBy(player -> maxPlaces, (player, value) -> setMaxPlaces(value));
 	}
