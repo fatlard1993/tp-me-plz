@@ -178,10 +178,11 @@ public final class TpMenu {
 	/**
 	 * @param tip     what hovering says
 	 * @param shared  for a place that can be shared or made private, whether it is now; null for one that cannot
+	 * @param enabled whether pressing it does anything; one that cannot still shows, with its tip saying why
 	 */
-	private record Tile(String id, String item, String word, String tip, boolean deletable, Boolean shared) {
+	private record Tile(String id, String item, String word, String tip, boolean deletable, Boolean shared, boolean enabled) {
 		Tile(String id, String item, String word) {
-			this(id, item, word, word, false, null);
+			this(id, item, word, word, false, null, true);
 		}
 	}
 
@@ -352,13 +353,16 @@ public final class TpMenu {
 		for (int i = 0; i < places.size(); i++) {
 			Places.Own own = places.get(i);
 			tiles.add(new Tile("place:" + i, own.place().icon(), own.place().name(),
-				own.place().name() + (own.shared() ? ", shared with everyone" : ""), true, own.shared()));
+				own.place().name() + (own.shared() ? ", shared with everyone" : ""), true, own.shared(), true));
 		}
+		// Full, the tile stays and says so: one that vanishes leaves a full player looking for it
 		if (!Places.full(player)) tiles.add(new Tile("new", "minecraft:writable_book", "New"));
+		else tiles.add(new Tile("new", "minecraft:writable_book", "New", places.size() + " of " + TpConfig.maxPlaces()
+			+ " places saved: delete one to make room", false, null, false));
 		for (SharedPlaces.Shared other : shared) {
 			boolean changes = Places.mayChange(player, other);
 			tiles.add(new Tile("shared:" + other.key(), other.place().icon(), other.place().name(),
-				other.place().name() + ", shared by " + other.ownerName(), changes, changes ? Boolean.TRUE : null));
+				other.place().name() + ", shared by " + other.ownerName(), changes, changes ? Boolean.TRUE : null, true));
 		}
 		return tiles;
 	}
@@ -388,8 +392,8 @@ public final class TpMenu {
 			Tile tile = tiles.get(i);
 			int x = (i % at.columns()) * (at.tileW() + GAP);
 			int y = (i / at.columns()) * (TILE + GAP);
-			grid.add(button(tile.id(), x, y, at.tileW(), TILE,
-				Map.of(ComponentType.PROP_TOOLTIP, tile.tip())).build());
+			grid.add(button(tile.id(), x, y, at.tileW(), TILE, Map.of(ComponentType.PROP_TOOLTIP, tile.tip(),
+				ComponentType.PROP_ENABLED, String.valueOf(tile.enabled()))).build());
 			grid.add(icon(tile.id() + "_icon", tile.item(), x + (at.tileW() - ICON) / 2, y + 7, TILE_ICON_SCALE).build());
 			grid.add(new ComponentBuilder(tile.id() + "_word", ComponentType.TEXT)
 				.bounds(x, y + TILE - 11, at.tileW(), 10)
